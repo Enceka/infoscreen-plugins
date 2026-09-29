@@ -1,0 +1,9 @@
+{
+  "id": "bigclock",
+  "api_version": 1,
+  "version": "1.0",
+  "name": { "zh": "大字时钟", "en": "Big clock" },
+  "description": { "zh": "整屏显示时间和日期，可保持亮屏", "en": "The time and date, full screen, the screen kept on if wanted" },
+  "entry": "index.html",
+  "order": 40
+}

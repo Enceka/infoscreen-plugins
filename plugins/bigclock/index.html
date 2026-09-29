@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+	html, body { margin: 0; height: 100%; background: #0b0e13; color: #e8ecf2;
+		font-family: "Noto Sans CJK SC", "DejaVu Sans", sans-serif; user-select: none; cursor: none; }
+	body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+	#time { font-size: 96px; font-weight: bold; font-variant-numeric: tabular-nums; letter-spacing: -2px; }
+	#sec { font-size: 28px; color: #4aa3ff; font-variant-numeric: tabular-nums; }
+	#date { margin-top: 18px; font-size: 22px; color: #8b95a5; }
+	#help { position: absolute; bottom: 10px; font-size: 12px; color: #5d6776; }
+	b { color: #4aa3ff; }
+</style>
+</head>
+<body>
+<div id="time">--:--</div>
+<div id="sec">--</div>
+<div id="date"></div>
+<div id="help"></div>
+<script src="/sdk/e5.js"></script>
+<script>
+'use strict';
+// The time in the device's zone (e5.time: WebKit's own zone is UTC here), large; OK keeps the screen on.
+const $ = (id) => document.getElementById(id);
+const WEEK = { zh: ['日', '一', '二', '三', '四', '五', '六'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] };
+let awake = false;
+
+function tick() {
+	const hms = e5.time();
+	$('time').textContent = hms.slice(0, 5);
+	$('sec').textContent = hms.slice(6, 8);
+	const d = new Date(Date.now() + e5.tzOffset * 1000);
+	const w = WEEK[e5.lang] ?? WEEK.zh;
+	$('date').textContent = e5.lang == 'en'
+		? `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()} ${w[d.getUTCDay()]}`
+		: `${d.getUTCFullYear()} 年 ${d.getUTCMonth() + 1} 月 ${d.getUTCDate()} 日 星期${w[d.getUTCDay()]}`;
+}
+function help() {
+	$('help').innerHTML = e5.t({
+		zh: `<b>确认</b> ${awake ? '恢复自动熄屏' : '保持亮屏'} · <b>返回</b> 退出`,
+		en: `<b>OK</b> ${awake ? 'let the screen sleep' : 'keep the screen on'} · <b>back</b> leave`
+	});
+}
+e5.onKey((k) => {
+	if (k.kind != 'ok') return false;
+	awake = !awake;
+	e5.keepAwake(awake);
+	e5.toast(e5.t(awake ? { zh: '保持亮屏', en: 'Screen kept on' } : { zh: '恢复自动熄屏', en: 'The screen sleeps again' }));
+	help();
+	return true;
+});
+e5.onLang(() => { help(); tick(); });
+help();
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
