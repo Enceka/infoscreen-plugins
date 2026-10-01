@@ -29,6 +29,23 @@ The app store of the E5 OpenWrt info screen.  On the screen: 高级 -> 应用管
 * **后台**（`backend.uc`）以 root 运行：检查会列出它执行命令、写删文件、发 AT 指令、改 uci
   的地方，审阅时逐条看过才合并。商店里标明“含后台”。
 
+## 发布 / Deployment
+
+仓库 Settings → Pages → Source 选择 **GitHub Actions**。商店需要工作流生成的
+`dist/index.json` 和应用包；选择从 `main` 根目录部署只会发布源码，无法生成商店索引。
+如果首次工作流运行时 Pages 尚未开启，配置好后在 Actions → store 重跑失败任务，
+或使用 **Run workflow**（main 分支）。工作流先读取 Pages 配置，再使用其实际站点地址打包。
+
+检查结果：`https://enceka.github.io/infoscreen-plugins/index.json` 应返回 JSON，
+其中每个应用的 `url` 都应能下载到对应包。CI 成功后再从设备刷新商店。
+
+Set Settings → Pages → Source to **GitHub Actions**. The store needs the
+workflow-generated `dist/index.json` and packages, rather than a deployment
+of the source branch. If the first run failed before Pages was enabled, rerun
+the failed job or use **Run workflow** on main. The build uses the configured
+Pages base URL. Check both the public index and its package URLs before
+refreshing the store on a device.
+
 ## 许可 / License
 
 MIT（见 `LICENSE`）；每个应用可在自己的目录里另附许可。
