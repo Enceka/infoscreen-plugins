@@ -184,7 +184,7 @@ function key(k){
   if(k.kind==='back'){closeEditor();$('delete-sheet').hidden=true;return true;}
  }else{
   if(k.kind==='digit'){if(!current()&&!pending)setNumber(number+k.key);return true;}
-  if(k.key==='Phone'||k.key==='PickupPhone'){
+  if(k.kind==='call'||k.key==='Phone'||k.key==='PickupPhone'){
    const c=current();if(incoming(c))perform('answer',{id:c.id});else if(!c)dial();return true;
   }
   if(k.key==='HangupPhone'||k.kind==='power'){

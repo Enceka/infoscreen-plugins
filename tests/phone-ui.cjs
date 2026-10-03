@@ -58,10 +58,27 @@ const shots = process.env.E5_PHONE_SCREENSHOTS;
  calls=[];await page.waitForTimeout(2200);
  await page.setViewportSize({width:320,height:320});await layout();await shot('compact');
  await page.setViewportSize({width:320,height:424});
- // Known physical menu/unknown events select a button; they never dial from
- // an unfocused empty page. No input-device mapping is changed by this app.
+ // Unknown/menu/# must not activate even a focused call button. Replay the
+ // names reported by WPE after the E5 XKB mapping, with all requests mocked.
  await page.evaluate(()=>{document.activeElement.blur();});posts=[];
  await page.keyboard.press('Enter');assert.equal(posts.length,0);
+ async function physical(key,keyCode=0,repeat=false){
+  await page.evaluate(({key,keyCode,repeat})=>document.dispatchEvent(new KeyboardEvent('keydown',{key,keyCode,repeat,code:'Unidentified',bubbles:true,cancelable:true})),{key,keyCode,repeat});
+  await page.waitForTimeout(100);
+ }
+ await page.locator('#dial').focus();
+ await physical('Unidentified');await physical('ContextMenu',93);
+ assert.equal(posts.length,0,'unknown/menu dialed');
+ await physical('#',51);assert.equal(await page.locator('#number').textContent(),'10099#');
+ assert.equal(posts.length,0,'# dialed');await physical('Backspace',8);
+ await physical('F1',112);assert.equal(posts.length,0,'side key dialed');
+ await physical('F13',124);await physical('F13',124,true);await page.waitForTimeout(300);
+ assert.equal(posts.filter(p=>p.p.endsWith('/call')).length,1,'physical call key did not dial exactly once');
+ calls=[{id:'42',number:'10099',state:'ringing-in',direction:'incoming'}];
+ await page.waitForSelector('#accept:not([hidden])');posts=[];
+ await physical('F13',124);assert.equal(posts.at(-1).p,'/api/plugins/phone/answer');
+ await page.waitForTimeout(300);
+ await physical('PowerOff',409);assert.equal(posts.at(-1).p,'/api/plugins/phone/hangup');
  assert.deepEqual(errors,[],'browser errors');
  console.log('Phone UI checks passed');await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});
