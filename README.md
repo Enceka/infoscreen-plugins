@@ -19,7 +19,7 @@ The app store of the E5 OpenWrt info screen.  On the screen: 高级 -> 应用管
 ## 规则 / The rules (tools/check.py)
 
 * **manifest**：`id` 与目录名相同（小写字母、数字、`-`、`_`，最多 32 个字符）；`api_version`
-  是屏幕支持的（目前 1）；`version` 是点分数字；`name` 和 `description` 都要有 `zh` 和 `en`；
+  是屏幕支持的（目前 2，兼容 1）；`version` 是点分数字；`name` 和 `description` 都要有 `zh` 和 `en`；
   `entry` 是应用里的文件；设置项的 `uci` 用 `e5-plugin-<id>.<section>.<option>`。
 * **文件**：只允许 html、js、css、json、uc、svg、txt、md 和常见图片、woff2；没有隐藏文件、
   没有链接；整个应用不超过 2 MB。
@@ -49,3 +49,16 @@ refreshing the store on a device.
 ## 许可 / License
 
 MIT（见 `LICENSE`）；每个应用可在自己的目录里另附许可。
+
+## 电话应用
+
+`plugins/phone/` 是独立更新的电话应用。需要信息屏 1.5.0（API 2）及
+OpenWrt 的 `e5-voice-audio` 音频服务。核心负责通用通知展示，插件负责拨号、
+接听、挂断、通讯录和铃声/震动/亮屏设置；声音和震动由后台服务执行，
+关闭电话页面后仍可提醒。设置位置：高级 → 应用管理 → 电话 → 设置。
+铃声音量跟随信息屏的“声音”设置；音量为零时仍可使用震动。
+
+应用包通过 `python3 tools/build.py` 生成到 `dist/packages/phone-1.2.tar.gz`，
+可用 `/usr/libexec/e5-infoscreen/plugin install FILE` 安装，后续通过应用商店更新。
+当前短信/通话仍使用系统选择的 SIM，双卡同时接收和每次选卡需要底层双卡
+事件/端口支持，尚未按 Android 的双卡待机方式实现。

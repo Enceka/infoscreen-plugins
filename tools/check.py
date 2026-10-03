@@ -7,7 +7,7 @@ reviewer.  The rules are in README.md.
 """
 import json, os, re, sys
 
-API_VERSION = 1                      # the newest the screen has (e5-infoscreen docs/API.md)
+API_VERSION = 2                      # the newest the screen has (e5-infoscreen docs/API.md)
 MAX_BYTES = 2 * 1024 * 1024          # per app, all files (the screen takes 20 MB; the store wants small ones)
 ID = re.compile(r'^[a-z0-9][a-z0-9_-]{0,31}$')
 VERSION = re.compile(r'^\d+(\.\d+){0,3}$')
@@ -27,7 +27,7 @@ FRONT_BAD = [
 ]
 # a backend runs as root: what the reviewer has to look at
 BACK_NOTE = [
-    (re.compile(r'\b(system|popen)\s*\('), 'runs commands (system/popen)'),
+    (re.compile(r'\b(system|popen)\s*\(|\bctx\.sh(_json)?\s*\('), 'runs commands'),
     (re.compile(r'\bwritefile\s*\(|\bopen\s*\([^)]*["\'][wa]'), 'writes files'),
     (re.compile(r'\b(remove|unlink|rmdir)\s*\('), 'deletes files'),
     (re.compile(r'\bctx\.at(_console)?\s*\('), 'sends AT commands to the modem'),
@@ -81,7 +81,7 @@ def check(d):
         if not re.match(rf'^e5-plugin-{re.escape(rid)}\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$', u):
             errs.append(f'{where}: uci must be e5-plugin-{rid}.<section>.<option>, not {u!r}')
         lbl_ok(s.get('label'), f'settings[{i}].label', errs)
-    unknown = set(m) - {'id', 'api_version', 'version', 'name', 'description', 'entry', 'order', 'settings'}
+    unknown = set(m) - {'id', 'api_version', 'version', 'name', 'description', 'entry', 'order', 'settings', 'notifications'}
     if unknown:
         notes.append(f'manifest: fields the screen does not use: {", ".join(sorted(unknown))}')
 
@@ -118,9 +118,9 @@ def check(d):
             for ln, line in enumerate(text.split('\n'), 1):
                 if line != line.rstrip():
                     errs.append(f'{rel}:{ln}: trailing whitespace'); break
-            if n == 'backend.uc':
+            if ext == '.uc':
                 found = sorted({why for rx, why in BACK_NOTE if rx.search(text)})
-                notes.append(f'backend.uc (runs as root): {", ".join(found) if found else "nothing flagged"}')
+                notes.append(f'{rel} (runs as root): {", ".join(found) if found else "nothing flagged"}')
                 continue
             if ext in {'.html', '.js'}:
                 for ln, line in enumerate(text.split('\n'), 1):

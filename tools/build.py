@@ -62,7 +62,7 @@ def main():
         print(f'{name}: {len(data)} bytes')
     index.sort(key=lambda p: (p['order'], p['id']))
     with open(os.path.join(OUT, 'index.json'), 'w', encoding='utf-8') as f:
-        json.dump({'api_version': 1, 'generated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        json.dump({'api_version': 2, 'generated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                    'plugins': index}, f, ensure_ascii=False, indent=1)
         f.write('\n')
     print(f'dist/index.json: {len(index)} apps, base {BASE}')
