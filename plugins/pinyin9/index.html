@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>九键输入法</title>
+<link rel="stylesheet" href="pinyin9.css">
+</head>
+<body>
+<header class="heading">
+ <strong id="title">九键输入法</strong>
+ <span id="mode-hint">中文</span>
+</header>
+<main>
+ <section class="editor" aria-label="输入内容">
+  <div id="text" aria-live="polite"></div>
+  <div id="composition" aria-live="polite"></div>
+ </section>
+ <section id="candidates" class="candidates" aria-label="候选词"></section>
+ <nav id="modes" class="modes" aria-label="输入模式">
+  <button type="button" data-mode="zh">中文</button>
+  <button type="button" data-mode="en">ABC</button>
+  <button type="button" data-mode="num">123</button>
+ </nav>
+ <section id="keypad" class="keypad" aria-label="九键键盘">
+  <button type="button" data-key="1"><b>1</b><small>.,?!</small></button>
+  <button type="button" data-key="2"><b>2</b><small>ABC</small></button>
+  <button type="button" data-key="3"><b>3</b><small>DEF</small></button>
+  <button type="button" data-key="4"><b>4</b><small>GHI</small></button>
+  <button type="button" data-key="5"><b>5</b><small>JKL</small></button>
+  <button type="button" data-key="6"><b>6</b><small>MNO</small></button>
+  <button type="button" data-key="7"><b>7</b><small>PQRS</small></button>
+  <button type="button" data-key="8"><b>8</b><small>TUV</small></button>
+  <button type="button" data-key="9"><b>9</b><small>WXYZ</small></button>
+  <button type="button" data-key="*"><b>*</b><small>模式</small></button>
+  <button type="button" data-key="0"><b>0</b><small>空格</small></button>
+  <button type="button" data-key="#"><b>#</b><small>确认</small></button>
+ </section>
+ <div class="actions">
+  <button type="button" id="space">空格</button>
+  <button type="button" id="confirm">确认</button>
+  <button type="button" id="backspace" aria-label="退格">⌫</button>
+ </div>
+</main>
+<footer id="help">数字键输入 · * 切换模式 · # 确认候选</footer>
+<script src="/sdk/e5.js"></script>
+<script src="pinyin9-dictionary.js"></script>
+<script src="pinyin9.js"></script>
+</body>
+</html>

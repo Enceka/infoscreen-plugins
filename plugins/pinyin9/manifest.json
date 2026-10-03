@@ -1,0 +1,15 @@
+{
+	"id": "pinyin9",
+	"api_version": 1,
+	"version": "1.0",
+	"name": {
+		"zh": "九键输入法",
+		"en": "Nine-key Chinese"
+	},
+	"description": {
+		"zh": "用数字键输入中文、英文和数字",
+		"en": "Type Chinese, English and numbers with the keypad"
+	},
+	"entry": "index.html",
+	"order": 20
+}

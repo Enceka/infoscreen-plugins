@@ -1,0 +1,46 @@
+:root { color-scheme: dark; --bg:#0b0e13; --card:#161d27; --card2:#1b2734; --text:#e8ecf2; --dim:#8997a8; --line:#273342; --blue:#75b7ff; --green:#42d391; }
+* { box-sizing:border-box; }
+html, body { margin:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font:13px "Noto Sans CJK SC", "DejaVu Sans", sans-serif; cursor:none; user-select:none; }
+body { display:flex; flex-direction:column; padding:8px 12px 6px; gap:6px; }
+[hidden] { display:none !important; }
+button { border:0; color:inherit; font:inherit; cursor:none; outline:none; }
+button:focus-visible, button.active { box-shadow:0 0 0 2px #dce8ff; }
+button:active { filter:brightness(1.25); }
+.heading { height:22px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.heading strong { font-size:16px; letter-spacing:.4px; }
+#mode-hint { color:var(--blue); font-size:12px; }
+main { display:flex; min-height:0; flex:1; flex-direction:column; gap:6px; }
+.editor { min-height:72px; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#101720; }
+#text { min-height:30px; max-height:61px; overflow:hidden; overflow-wrap:anywhere; white-space:pre-wrap; font-size:23px; line-height:1.3; }
+#text:empty::before { content:attr(data-placeholder); color:#536274; font-size:14px; }
+#composition { min-height:18px; color:var(--blue); font-size:12px; letter-spacing:.7px; }
+.candidates { display:flex; min-height:34px; gap:5px; overflow:hidden; align-items:stretch; }
+.candidate { min-width:39px; padding:4px 7px; border-radius:8px; background:var(--card); color:#dbe7f5; font-size:15px; }
+.candidate.active { background:#254f76; color:#fff; box-shadow:0 0 0 2px var(--blue); }
+.candidate.more { flex:1; min-width:0; color:var(--dim); background:transparent; text-align:left; font-size:11px; }
+.modes { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; height:30px; flex-shrink:0; }
+.modes button { border-radius:8px; background:#121a23; color:var(--dim); }
+.modes button.active { background:#21476a; color:#fff; }
+.keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:5px 9px; flex-shrink:0; }
+.keypad button { height:36px; display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:12px; background:var(--card); }
+.keypad b { font-size:21px; line-height:21px; font-weight:500; }
+.keypad small { min-height:11px; color:var(--dim); font-size:8px; line-height:11px; letter-spacing:1px; }
+.actions { display:grid; grid-template-columns:1fr 1.25fr 1fr; gap:9px; height:32px; flex-shrink:0; }
+.actions button { border-radius:16px; background:#17222e; color:#b8c9dc; }
+.actions #confirm { background:var(--green); color:#062d1d; font-weight:600; }
+.actions #backspace { font-size:20px; line-height:20px; }
+footer { min-height:13px; color:#657587; text-align:center; font-size:10px; line-height:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-height:380px) {
+ body { padding-top:4px; gap:3px; }
+ .editor { min-height:55px; padding:5px 8px; }
+ #text { min-height:23px; max-height:44px; font-size:18px; }
+ .candidates { min-height:28px; }
+ .candidate { min-width:34px; padding:2px 5px; font-size:13px; }
+ .modes { height:25px; }
+ .keypad { gap:3px 7px; }
+ .keypad button { height:28px; border-radius:9px; }
+ .keypad b { font-size:18px; line-height:18px; }
+ .keypad small { font-size:7px; line-height:8px; }
+ .actions { height:27px; }
+ footer { display:none; }
+}
