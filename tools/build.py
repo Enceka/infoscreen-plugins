@@ -62,6 +62,7 @@ def main():
             f.write(data)
         index.append({'id': id, 'version': m['version'], 'api_version': m['api_version'],
                       'name': m['name'], 'description': m.get('description'), 'order': m.get('order', 50),
+                      'input_method': m.get('input_method') is True,
                       'backend': os.path.isfile(os.path.join(d, 'backend.uc')),
                       'size': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
                       'url': f'{BASE}/packages/{name}'})

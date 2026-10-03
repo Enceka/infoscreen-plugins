@@ -52,6 +52,7 @@ stores the counts; previews do not send production events. Statistics failures n
 * **manifest**：`id` 与目录名相同（小写字母、数字、`-`、`_`，最多 32 个字符）；`api_version`
   是屏幕支持的（目前 2，兼容 1）；`version` 是点分数字；`name` 和 `description` 都要有 `zh` 和 `en`；
   `entry` 是应用里的文件；设置项的 `uci` 用 `e5-plugin-<id>.<section>.<option>`。
+  输入法应用可设置 `input_method: true`，通过 API 2 的 `e5.input()` 向宿主当前输入框提交文字。
 * **文件**：只允许 html、js、css、json、uc、svg、txt、md 和常见图片、woff2；没有隐藏文件、
   没有链接；整个应用不超过 2 MB。
 * **风格**：UTF-8，LF 换行，文件以换行结尾，行尾没有空格。

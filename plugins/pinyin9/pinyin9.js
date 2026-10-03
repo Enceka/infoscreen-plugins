@@ -44,7 +44,9 @@ function tr(zh, en) { return e5.t({ zh, en }); }
 
 function appendText(value) {
 	if (!value) return;
-	state.text = [...state.text, ...String(value)].slice(-2000).join('');
+	const text = String(value);
+	state.text = [...state.text, ...text].slice(-2000).join('');
+	e5.input(text);
 }
 
 function hasPunctuation() { return state.punctKey !== null; }
@@ -219,7 +221,7 @@ function backspace() {
 	}
 	if (hasPunctuation()) { state.punctKey = null; render(); return true; }
 	if (state.englishKey !== null) { state.englishKey = null; render(); return true; }
-	if (state.text) { state.text = [...state.text].slice(0, -1).join(''); render(); return true; }
+	if (state.text) { state.text = [...state.text].slice(0, -1).join(''); e5.inputBackspace(); render(); return true; }
 	return false;
 }
 
@@ -274,11 +276,13 @@ function render() {
 	$('title').textContent = tr('九键输入法', 'Nine-key Chinese');
 	$('space').textContent = tr('空格', 'Space');
 	$('confirm').textContent = tr('确认', 'OK');
+	const targetHint = e5.inputAvailable ? tr(' · 已连接当前输入框', ' · linked to input') : '';
 	$('help').textContent = state.mode === 'zh'
 		? tr('2-9 拼音 · 上下选词 · * 切换模式 · # 确认', '2-9 pinyin · up/down choose · * mode · # choose')
 		: state.mode === 'en'
 			? tr('重复按键选择字母 · * 切换模式 · 返回退格', 'tap a key repeatedly for a letter · * mode · backspace')
 			: tr('数字直输 · * 切换模式 · 返回退格', 'digits · * mode · backspace');
+	$('help').textContent += targetHint;
 	renderCandidates();
 }
 
@@ -290,4 +294,6 @@ $('backspace').addEventListener('click', backspace);
 e5.onKey(handleKey);
 e5.onBack(() => backspace());
 e5.onLang(render);
+e5.onInputTarget(render);
+e5.onInputResult((result) => { if (!result.ok) e5.toast(tr('当前输入框不可用', 'The input target is unavailable')); });
 render();

@@ -81,7 +81,7 @@ def check(d):
         if not re.match(rf'^e5-plugin-{re.escape(rid)}\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$', u):
             errs.append(f'{where}: uci must be e5-plugin-{rid}.<section>.<option>, not {u!r}')
         lbl_ok(s.get('label'), f'settings[{i}].label', errs)
-    unknown = set(m) - {'id', 'api_version', 'version', 'name', 'description', 'entry', 'order', 'settings', 'notifications'}
+    unknown = set(m) - {'id', 'api_version', 'version', 'name', 'description', 'entry', 'order', 'settings', 'notifications', 'input_method'}
     if unknown:
         notes.append(f'manifest: fields the screen does not use: {", ".join(sorted(unknown))}')
 
