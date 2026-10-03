@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#315bea">
+  <meta name="description" content="发现、下载和安装荣悦 E5 OpenWrt 信息屏应用。Discover apps for your E5 OpenWrt info screen.">
+  <title>信息屏应用商店 · Info screen apps</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-screen" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="3"/><path d="M8 21h8M12 17v4M7 8h4M7 12h8"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="icon-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="icon-phone" viewBox="0 0 24 24"><path d="m8 3 3 5-3 3c1 2 3 4 5 5l3-3 5 3-1 4c-1 3-8 0-12-4S1 5 4 4l4-1Z"/></symbol>
+    <symbol id="icon-app" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M14 17.5h7M17.5 14v7"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V4H4v11h4"/></symbol>
+  </svg>
+  <a class="skip-link" href="#apps" data-i18n="skip">跳转到应用列表</a>
+  <header class="header wrap">
+    <a class="brand" href="./" aria-label="信息屏应用商店 / Info screen apps">
+      <span class="brand-mark"><svg class="icon"><use href="#icon-screen"/></svg></span>
+      <span data-i18n="brand">信息屏<span class="brand-secondary">应用商店</span></span>
+    </a>
+    <nav class="navigation" aria-label="主导航 / Main navigation">
+      <a href="#apps" data-i18n="navApps">发现应用</a>
+      <a href="#install" data-i18n="navInstall">如何安装</a>
+      <a class="repo-link" href="https://github.com/Enceka/infoscreen-plugins" target="_blank" rel="noopener noreferrer">GitHub <svg class="icon"><use href="#icon-external"/></svg></a>
+    </nav>
+    <button class="language-button" id="language" type="button" aria-label="Switch to English">EN <span aria-hidden="true">↗</span></button>
+  </header>
+  <main>
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot"></span>E5 OPENWRT <span class="eyebrow-divider">/</span> COMMUNITY STORE</p>
+        <h1 id="hero-title"><span data-i18n="heroFirst">让小屏幕，</span><br><span class="accent" data-i18n="heroSecond">有更多可能。</span></h1>
+        <p class="hero-description" data-i18n="heroDescription">给你的 E5 信息屏添一点新本领。<br>轻巧、开源的应用，让日常的小事更顺手。</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#apps"><span data-i18n="browse">探索应用</span><svg class="icon"><use href="#icon-arrow"/></svg></a>
+          <a class="text-link" href="https://github.com/Enceka/e5-infoscreen" target="_blank" rel="noopener noreferrer"><span data-i18n="about">了解信息屏</span><svg class="icon"><use href="#icon-external"/></svg></a>
+        </div>
+        <div class="hero-note"><span class="mini-apps"><svg class="icon"><use href="#icon-app"/></svg></span><span><strong id="hero-count">—</strong> <span data-i18n="availableApps">款应用，持续生长中</span></span><span class="note-divider"></span><span data-i18n="openSource">开源 · 自由探索</span></div>
+      </div>
+      <div class="hero-visual" aria-label="信息屏时钟预览 / Info screen clock preview">
+        <div class="visual-grid"></div>
+        <span class="visual-caption">SMALL SCREEN. BIG POSSIBILITIES.</span>
+        <div class="device">
+          <div class="device-top"><span class="device-speaker"></span><span class="device-light"></span></div>
+          <div class="device-screen">
+            <div class="screen-status"><span>E5 <span class="screen-wifi" aria-hidden="true">◔</span></span><span class="screen-battery" aria-hidden="true"></span></div>
+            <div class="clock"><span id="clock-time">10:08</span><span id="clock-seconds">36</span></div>
+            <p id="clock-date" class="clock-date"></p>
+            <div class="screen-bottom"><span class="screen-dot"></span><span data-i18n="clockCaption">大字时钟</span></div>
+          </div>
+          <span class="device-label">E5 INFO SCREEN</span>
+          <div class="device-controls" aria-hidden="true"><span>‹</span><span class="device-ok">●</span><span>≡</span></div>
+        </div>
+        <div class="visual-chip"><span class="chip-icon"><svg class="icon"><use href="#icon-plus"/></svg></span><span data-i18n="visualChip">小应用，大用处。</span></div>
+        <span class="visual-orbit" aria-hidden="true">✳</span>
+      </div>
+    </section>
+    <section class="catalog wrap" id="apps" aria-labelledby="apps-title">
+      <div class="section-heading"><div><p class="section-kicker">THE COLLECTION</p><h2 id="apps-title"><span data-i18n="collection">发现你的下一个应用</span><span class="count-badge" id="app-count">—</span></h2></div><p class="updated"><span data-i18n="updated">目录更新于</span> <time id="updated">—</time></p></div>
+      <div class="toolbar">
+        <div class="filters" role="group" aria-label="应用类型 / App type">
+          <button type="button" class="filter active" data-filter="all" aria-pressed="true" data-i18n="all">全部应用</button>
+          <button type="button" class="filter" data-filter="frontend" aria-pressed="false" data-i18n="frontend">纯前端</button>
+          <button type="button" class="filter" data-filter="backend" aria-pressed="false" data-i18n="backend">含后台</button>
+        </div>
+        <label class="search"><svg class="icon"><use href="#icon-search"/></svg><span class="sr-only" data-i18n="searchLabel">搜索应用</span><input id="search" type="search" placeholder="搜索应用名称、功能…" autocomplete="off" data-placeholder="searchPlaceholder"><kbd aria-hidden="true">/</kbd></label>
+      </div>
+      <p id="results-status" class="sr-only" role="status" aria-live="polite"></p>
+      <div id="catalog-state" class="catalog-state" role="status"><span class="loading-dot"></span><span data-i18n="loading">正在加载应用…</span></div>
+      <div class="app-grid" id="app-grid"></div>
+      <noscript><p class="catalog-state">请启用 JavaScript 浏览应用，或 <a href="index.json">查看应用索引 / View the app index</a>。</p></noscript>
+    </section>
+    <section class="install-section wrap" id="install" aria-labelledby="install-title">
+      <div class="section-heading"><div><p class="section-kicker">MAKE IT YOURS</p><h2 id="install-title" data-i18n="installTitle">新本领，几步就到手。</h2></div><span class="install-note" data-i18n="installNote">在你的 E5 上安装应用</span></div>
+      <div class="install-grid">
+        <article class="install-card"><span class="install-number">01</span><div><h3 data-i18n="onDevice">在信息屏上安装</h3><p data-i18n="onDeviceDescription">打开信息屏的应用商店，刷新列表，选择喜欢的应用并确认安装。</p><div class="device-path"><span data-i18n="settings">高级</span><span aria-hidden="true">›</span><span data-i18n="manage">应用管理</span><span aria-hidden="true">›</span><span data-i18n="store">应用商店</span></div></div></article>
+        <article class="install-card"><span class="install-number">02</span><div><h3 data-i18n="manual">也可以手动安装</h3><p data-i18n="manualDescription">下载应用包，上传到设备并命名为 /tmp/app.tar.gz，然后在设备终端运行：</p><div class="code-line"><code>/usr/libexec/e5-infoscreen/plugin install /tmp/app.tar.gz</code><button class="copy-button" type="button" data-copy="/usr/libexec/e5-infoscreen/plugin install /tmp/app.tar.gz" aria-label="复制命令 / Copy command"><svg class="icon"><use href="#icon-copy"/></svg></button></div></div></article>
+      </div>
+    </section>
+  </main>
+  <footer class="footer wrap"><div><span class="footer-brand"><svg class="icon"><use href="#icon-screen"/></svg><span data-i18n="footer">为 E5 的小屏幕而造。</span></span><span class="footer-license">MIT LICENSE · MADE FOR THE COMMUNITY</span></div><div class="footer-links"><a href="index.json" data-i18n="jsonIndex">应用索引 JSON</a><a href="https://github.com/Enceka/e5-infoscreen/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer" data-i18n="docs">开发文档</a><a href="https://github.com/Enceka/infoscreen-plugins" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></div></footer>
+  <template id="app-template">
+    <article class="app-card">
+      <div class="card-top"><span class="app-icon"><svg class="icon"><use/></svg></span><span class="app-kind"></span></div>
+      <div class="app-title"><h3></h3><span class="app-version"></span></div><p class="app-description"></p>
+      <div class="app-meta"><span class="app-id"></span><span class="meta-dot">·</span><span class="app-size"></span><span class="meta-dot">·</span><span class="app-api"></span></div>
+      <div class="card-actions"><button class="button app-details" type="button"><span data-i18n="view">查看应用</span><svg class="icon"><use href="#icon-arrow"/></svg></button><a class="download-link" download><svg class="icon"><use href="#icon-download"/></svg><span data-i18n="download">下载</span></a></div>
+    </article>
+  </template>
+  <dialog id="details" aria-labelledby="detail-name">
+    <div class="dialog-top"><span id="detail-icon" class="app-icon"><svg class="icon"><use/></svg></span><button id="close-details" class="close-button" type="button" aria-label="关闭 / Close" autofocus><svg class="icon"><use href="#icon-close"/></svg></button></div>
+    <div class="app-title"><h2 id="detail-name"></h2><span id="detail-version" class="app-version"></span></div><p id="detail-description"></p>
+    <dl class="detail-meta"><div><dt data-i18n="identifier">应用 ID</dt><dd id="detail-id"></dd></div><div><dt data-i18n="packageSize">应用包大小</dt><dd id="detail-size"></dd></div><div><dt data-i18n="requires">接口要求</dt><dd id="detail-api"></dd></div><div><dt data-i18n="appType">应用类型</dt><dd id="detail-kind"></dd></div></dl>
+    <p class="backend-note" id="backend-note" data-i18n="backendNote" hidden>此应用包含以 root 运行的后台服务。</p>
+    <div class="detail-install"><h3 data-i18n="onDevice">在信息屏上安装</h3><p data-i18n="detailInstall">前往「高级 → 应用管理 → 应用商店」，刷新后选择此应用并确认安装。</p></div>
+    <details class="checksum"><summary data-i18n="checksum">校验信息 · SHA-256</summary><code id="detail-sha"></code></details>
+    <div class="dialog-actions"><a id="detail-download" class="button primary" download><svg class="icon"><use href="#icon-download"/></svg><span data-i18n="downloadPackage">下载应用包</span></a><a id="detail-source" class="text-link" target="_blank" rel="noopener noreferrer"><span data-i18n="source">查看源码</span><svg class="icon"><use href="#icon-external"/></svg></a></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

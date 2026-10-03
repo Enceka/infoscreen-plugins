@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The store as the screens read it: dist/index.json and dist/packages/<id>-<version>.tar.gz, one package per
+"""The storefront (site/), dist/index.json and dist/packages/<id>-<version>.tar.gz, one package per
 app in plugins/ (after tools/check.py).  The packages are reproducible: sorted, owned by root, one mtime.
 
     tools/build.py [BASE_URL]      (default https://enceka.github.io/infoscreen-plugins)
@@ -43,6 +43,7 @@ def package(d, id, version):
 def main():
     shutil.rmtree(OUT, ignore_errors=True)
     os.makedirs(os.path.join(OUT, 'packages'))
+    shutil.copytree(os.path.join(TOP, 'site'), OUT, dirs_exist_ok=True)
     index = []
     for id in sorted(os.listdir(SRC)):
         d = os.path.join(SRC, id)
