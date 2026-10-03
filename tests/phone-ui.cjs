@@ -31,6 +31,24 @@ const shots = process.env.E5_PHONE_SCREENSHOTS;
  async function shot(name){if(shots){fs.mkdirSync(shots,{recursive:true});await page.screenshot({path:path.join(shots,name+'.png')});}}
  await page.goto('http://phone.test/plugins/phone/index.html');
  await page.waitForSelector('#contacts .empty');assert.equal(posts.length,0);await layout();await shot('empty');
+ // The four directions follow the displayed 3x4 keypad, rather than DOM order.
+ async function focused(){return page.evaluate(()=>document.activeElement.dataset.key||document.activeElement.id);}
+ await page.locator('[data-key="2"]').focus();
+ for(const expected of ['5','8','0','dial']){await page.keyboard.press('ArrowDown');assert.equal(await focused(),expected);}
+ for(const expected of ['0','8','5','2']){await page.keyboard.press('ArrowUp');assert.equal(await focused(),expected);}
+ await page.keyboard.press('ArrowUp');assert.equal(await focused(),'2','top edge wrapped');
+ await page.keyboard.press('ArrowLeft');assert.equal(await focused(),'1');
+ await page.keyboard.press('ArrowLeft');assert.equal(await focused(),'1','left edge wrapped');
+ await page.keyboard.press('ArrowRight');assert.equal(await focused(),'2');
+ await page.keyboard.press('ArrowRight');assert.equal(await focused(),'3');
+ await page.keyboard.press('ArrowRight');assert.equal(await focused(),'3','right edge wrapped');
+ await page.keyboard.press('ArrowDown');assert.equal(await focused(),'6');
+ await page.keyboard.press('Enter');assert.equal(await page.locator('#number').textContent(),'6');
+ await page.click('#backspace');assert.equal(posts.length,0,'focus navigation sent an action');
+ await page.setViewportSize({width:320,height:320});
+ await page.locator('[data-key="5"]').focus();await page.keyboard.press('ArrowDown');assert.equal(await focused(),'8');
+ await page.keyboard.press('ArrowLeft');assert.equal(await focused(),'7');
+ await page.setViewportSize({width:320,height:424});
  for(const key of '10099')await page.click('[data-key="'+key+'"]');
  assert.equal(await page.locator('#number').textContent(),'10099');
  mode='error';await page.click('#dial');

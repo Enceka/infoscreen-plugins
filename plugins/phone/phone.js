@@ -165,12 +165,29 @@ $('delete-cancel').addEventListener('click',()=>{$('delete-sheet').hidden=true;d
 $('delete-confirm').addEventListener('click',async()=>{
  if(await saveContacts(contacts.filter(c=>c.number!==deleteNumber))){$('delete-sheet').hidden=true;deleteNumber=null;}
 });
-function moveFocus(delta){
+function moveFocus(direction){
  const root=!$('editor').hidden?$('editor'):!$('delete-sheet').hidden?$('delete-sheet'):document.body;
  const items=[...root.querySelectorAll('button,input')].filter(el=>el.offsetParent!==null&&!el.disabled);
  if(!items.length)return;
- const i=items.indexOf(document.activeElement),el=items[(i+delta+items.length)%items.length];
- el.focus();el.scrollIntoView({block:'nearest'});
+ const current=document.activeElement;
+ let next;
+ if(!items.includes(current))next=items[0];
+ else{
+  const from=current.getBoundingClientRect(),horizontal=direction==='left'||direction==='right';
+  const sign=direction==='left'||direction==='up'?-1:1;
+  const cx=(from.left+from.right)/2,cy=(from.top+from.bottom)/2;
+  let best=Infinity;
+  for(const el of items){
+   if(el===current)continue;
+   const r=el.getBoundingClientRect(),dx=(r.left+r.right)/2-cx,dy=(r.top+r.bottom)/2-cy;
+   const forward=(horizontal?dx:dy)*sign;
+   // Stay in the same visible row/column; do not wrap to another keypad row.
+   const aligned=horizontal?r.top<from.bottom-1&&r.bottom>from.top+1:r.left<from.right-1&&r.right>from.left+1;
+   const distance=dx*dx+dy*dy;
+   if(forward>1&&aligned&&distance<best){next=el;best=distance;}
+  }
+ }
+ if(next){next.focus();next.scrollIntoView({block:'nearest'});}
 }
 function eraseInput(el){const a=el.selectionStart??el.value.length,b=el.selectionEnd??a;el.value=el.value.slice(0,Math.max(0,a-(a===b?1:0)))+el.value.slice(b);}
 function insertInput(el,key){const a=el.selectionStart??el.value.length,b=el.selectionEnd??a;el.value=el.value.slice(0,a)+key+el.value.slice(b);el.setSelectionRange(a+key.length,a+key.length);}
@@ -193,10 +210,9 @@ function key(k){
   if(k.kind==='back'&&number){setNumber(number.slice(0,-1));return true;}
  }
  if(k.kind==='ok'){
-  const el=document.activeElement;if(el?.tagName==='BUTTON')e5.press(el);else moveFocus(1);return true;
+  const el=document.activeElement;if(el?.tagName==='BUTTON')e5.press(el);else moveFocus('down');return true;
  }
- if(k.kind==='up'||k.kind==='left'){moveFocus(-1);return true;}
- if(k.kind==='down'||k.kind==='right'){moveFocus(1);return true;}
+ if(['up','down','left','right'].includes(k.kind)){moveFocus(k.kind);return true;}
  return false;
 }
 document.querySelectorAll('[data-key]').forEach(b=>{
