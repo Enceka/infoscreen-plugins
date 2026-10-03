@@ -8,7 +8,7 @@ The index, as e5-infoscreen's `plugin store` / `plugin get` read it:
     { "api_version": 1, "generated": "...", "plugins": [ { "id", "version", "api_version", "name",
       "description", "order", "backend", "size", "sha256", "url" } ] }
 """
-import gzip, hashlib, io, json, os, shutil, sys, tarfile, time
+import gzip, hashlib, html, io, json, os, shutil, sys, tarfile, time
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else 'https://enceka.github.io/infoscreen-plugins').rstrip('/')
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -44,6 +44,11 @@ def main():
     shutil.rmtree(OUT, ignore_errors=True)
     os.makedirs(os.path.join(OUT, 'packages'))
     shutil.copytree(os.path.join(TOP, 'site'), OUT, dirs_exist_ok=True)
+    storefront = os.path.join(OUT, 'index.html')
+    with open(storefront, encoding='utf-8') as f:
+        page = f.read().replace('__STORE_BASE_URL__', html.escape(BASE, quote=True))
+    with open(storefront, 'w', encoding='utf-8') as f:
+        f.write(page)
     index = []
     for id in sorted(os.listdir(SRC)):
         d = os.path.join(SRC, id)

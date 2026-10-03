@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#315bea">
   <meta name="description" content="发现、下载和安装荣悦 E5 OpenWrt 信息屏应用。Discover apps for your E5 OpenWrt info screen.">
+  <meta name="store-url" content="__STORE_BASE_URL__/">
   <title>信息屏应用商店 · Info screen apps</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
+  <script src="statistics.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -90,19 +92,20 @@
       </div>
     </section>
   </main>
-  <footer class="footer wrap"><div><span class="footer-brand"><svg class="icon"><use href="#icon-screen"/></svg><span data-i18n="footer">为 E5 的小屏幕而造。</span></span><span class="footer-license">MIT LICENSE · MADE FOR THE COMMUNITY</span></div><div class="footer-links"><a href="index.json" data-i18n="jsonIndex">应用索引 JSON</a><a href="https://github.com/Enceka/e5-infoscreen/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer" data-i18n="docs">开发文档</a><a href="https://github.com/Enceka/infoscreen-plugins" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></div></footer>
+  <footer class="footer wrap"><div><span class="footer-brand"><svg class="icon"><use href="#icon-screen"/></svg><span data-i18n="footer">为 E5 的小屏幕而造。</span></span><span class="footer-license">MIT LICENSE · MADE FOR THE COMMUNITY</span><p class="visit-stat"><span data-i18n="pageViews">商店访问</span> <strong id="visit-count" data-stat-key="visits">—</strong> <span data-i18n="times">次</span><span class="stat-divider">·</span><a href="https://github.com/soxft/busuanzi" target="_blank" rel="noopener noreferrer" data-i18n="statisticsProvider">统计：不蒜子</a></p></div><div class="footer-links"><a href="index.json" data-i18n="jsonIndex">应用索引 JSON</a><a href="https://github.com/Enceka/e5-infoscreen/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer" data-i18n="docs">开发文档</a><a href="https://github.com/Enceka/infoscreen-plugins" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></div></footer>
   <template id="app-template">
     <article class="app-card">
       <div class="card-top"><span class="app-icon"><svg class="icon"><use/></svg></span><span class="app-kind"></span></div>
       <div class="app-title"><h3></h3><span class="app-version"></span></div><p class="app-description"></p>
       <div class="app-meta"><span class="app-id"></span><span class="meta-dot">·</span><span class="app-size"></span><span class="meta-dot">·</span><span class="app-api"></span></div>
+      <div class="app-stat"><svg class="icon"><use href="#icon-download"/></svg><span class="download-count">—</span><span data-i18n="downloadClicksUnit">次下载点击</span></div>
       <div class="card-actions"><button class="button app-details" type="button"><span data-i18n="view">查看应用</span><svg class="icon"><use href="#icon-arrow"/></svg></button><a class="download-link" download><svg class="icon"><use href="#icon-download"/></svg><span data-i18n="download">下载</span></a></div>
     </article>
   </template>
   <dialog id="details" aria-labelledby="detail-name">
     <div class="dialog-top"><span id="detail-icon" class="app-icon"><svg class="icon"><use/></svg></span><button id="close-details" class="close-button" type="button" aria-label="关闭 / Close" autofocus><svg class="icon"><use href="#icon-close"/></svg></button></div>
     <div class="app-title"><h2 id="detail-name"></h2><span id="detail-version" class="app-version"></span></div><p id="detail-description"></p>
-    <dl class="detail-meta"><div><dt data-i18n="identifier">应用 ID</dt><dd id="detail-id"></dd></div><div><dt data-i18n="packageSize">应用包大小</dt><dd id="detail-size"></dd></div><div><dt data-i18n="requires">接口要求</dt><dd id="detail-api"></dd></div><div><dt data-i18n="appType">应用类型</dt><dd id="detail-kind"></dd></div></dl>
+    <dl class="detail-meta"><div><dt data-i18n="identifier">应用 ID</dt><dd id="detail-id"></dd></div><div><dt data-i18n="packageSize">应用包大小</dt><dd id="detail-size"></dd></div><div><dt data-i18n="requires">接口要求</dt><dd id="detail-api"></dd></div><div><dt data-i18n="appType">应用类型</dt><dd id="detail-kind"></dd></div><div><dt data-i18n="downloadClicks">网页下载点击</dt><dd id="detail-download-count">—</dd></div></dl>
     <p class="backend-note" id="backend-note" data-i18n="backendNote" hidden>此应用包含以 root 运行的后台服务。</p>
     <div class="detail-install"><h3 data-i18n="onDevice">在信息屏上安装</h3><p data-i18n="detailInstall">前往「高级 → 应用管理 → 应用商店」，刷新后选择此应用并确认安装。</p></div>
     <details class="checksum"><summary data-i18n="checksum">校验信息 · SHA-256</summary><code id="detail-sha"></code></details>

@@ -1590,6 +1590,45 @@ dialog::backdrop {
   grid-template-columns:repeat(2,minmax(0,1fr));
 }
 
+.app-stat {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin-top:12px;
+  color:var(--muted);
+  font-size:10px;
+}
+
+.app-stat .icon {
+  width:13px;
+  height:13px;
+  color:#93a0bc;
+}
+
+.download-count, #visit-count, #detail-download-count {
+  font-variant-numeric:tabular-nums;
+}
+
+.visit-stat {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:5px;
+  margin:13px 0 0;
+  font-size:10px;
+  color:var(--muted);
+}
+
+.visit-stat strong {
+  font-weight:600;
+  color:#52688e;
+}
+
+.stat-divider {
+  color:#a1abc0;
+  margin-inline:4px;
+}
+
 @media(max-width:700px) {
   .app-grid.compact {
     grid-template-columns:1fr;

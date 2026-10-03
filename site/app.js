@@ -21,6 +21,9 @@ const TEXT = {
     loadError: '暂时无法加载应用列表', loadErrorHint: '请检查网络连接，然后再试一次。', retry: '重新加载',
     copied: '命令已复制', copyFailed: '无法自动复制，请选择命令并复制。', resultCount: (n) => `显示 ${n} 款应用`,
     close: '关闭', copy: '复制命令', languageLabel: 'Switch to English',
+    pageViews: '商店访问', times: '次', statisticsProvider: '统计：不蒜子', downloadClicks: '网页下载点击', downloadClicksUnit: '次下载点击',
+    statisticsHint: '从统计接入时开始累计；下载仅统计网页按钮点击，各版本合并计算。',
+    statisticsLoading: '正在加载统计…', statisticsError: '统计暂不可用', statisticsDisabled: '预览环境不计入正式统计',
   },
   en: {
     title: 'Info screen app store', brand: 'Info screen<span class="brand-secondary">apps</span>',
@@ -42,6 +45,9 @@ const TEXT = {
     loadError: 'Could not load the app list', loadErrorHint: 'Check your connection and try again.', retry: 'Try again',
     copied: 'Command copied', copyFailed: 'Please select the command and copy it manually.', resultCount: (n) => `${n} apps shown`,
     close: 'Close', copy: 'Copy command', languageLabel: '切换为中文',
+    pageViews: 'Store views', times: 'views', statisticsProvider: 'Stats: Busuanzi', downloadClicks: 'Website download clicks', downloadClicksUnit: 'download clicks',
+    statisticsHint: 'Counts start when tracking is enabled. Downloads count website button clicks across all versions.',
+    statisticsLoading: 'Loading statistics…', statisticsError: 'Statistics unavailable', statisticsDisabled: 'Previews do not affect production statistics',
   },
 };
 
@@ -74,6 +80,7 @@ function applyLanguage() {
   document.querySelectorAll('.copy-button').forEach((node) => node.setAttribute('aria-label', TEXT[lang].copy));
   renderCatalog();
   if (selectedApp) fillDetails(selectedApp);
+  renderStatistics();
   updateClock();
 }
 
@@ -164,6 +171,8 @@ function renderCatalog() {
       $('details').showModal();
     });
     const download = card.querySelector('.download-link');
+    download.dataset.downloadId = app.id;
+    card.querySelector('.download-count').dataset.statKey = `download:${app.id}`;
     download.href = app.url;
     download.download = `${app.id}-${app.version}.tar.gz`;
     download.setAttribute('aria-label', `${TEXT[lang].download} ${localized(app.name) || app.id}`);
@@ -177,6 +186,7 @@ function renderCatalog() {
     translate(card);
     grid.append(card);
   }
+  renderStatistics();
 }
 
 function fillDetails(app) {
@@ -192,7 +202,19 @@ function fillDetails(app) {
   $('detail-sha').textContent = app.sha256 || '—';
   $('detail-download').href = app.url;
   $('detail-download').download = `${app.id}-${app.version}.tar.gz`;
+  $('detail-download').dataset.downloadId = app.id;
+  $('detail-download-count').dataset.statKey = `download:${app.id}`;
   $('detail-source').href = `https://github.com/Enceka/infoscreen-plugins/tree/main/plugins/${encodeURIComponent(app.id)}`;
+  renderStatistics();
+}
+
+function renderStatistics() {
+  document.querySelectorAll('[data-stat-key]').forEach((node) => {
+    const value = storeStatistics.count(node.dataset.statKey);
+    node.textContent = value === undefined ? '—' : value.toLocaleString(lang === 'zh' ? 'zh-CN' : 'en');
+    const state = storeStatistics.state(node.dataset.statKey);
+    node.title = TEXT[lang][state === 'error' ? 'statisticsError' : state === 'disabled' ? 'statisticsDisabled' : value === undefined ? 'statisticsLoading' : 'statisticsHint'];
+  });
 }
 
 function resetSearch() {
@@ -233,6 +255,7 @@ async function loadCatalog() {
     });
     catalog = data;
     loadState = 'ready';
+    void storeStatistics.loadDownloads(data.plugins);
   } catch (_) {
     loadState = 'error';
   } finally {
@@ -284,6 +307,16 @@ document.querySelectorAll('[data-copy]').forEach((button) => button.addEventList
   } catch (_) { toast(TEXT[lang].copyFailed); }
 }));
 
+document.addEventListener('store-statistics', renderStatistics);
+for (const type of ['click', 'auxclick']) {
+  document.addEventListener(type, (event) => {
+    if ((type === 'click' && event.button !== 0) || (type === 'auxclick' && event.button !== 1)) return;
+    const link = event.target.closest('a[data-download-id]');
+    if (link) storeStatistics.recordDownload(link.dataset.downloadId);
+  });
+}
+
 applyLanguage();
+storeStatistics.start();
 loadCatalog();
 setInterval(updateClock, 1000);

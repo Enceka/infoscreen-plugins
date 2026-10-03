@@ -21,6 +21,23 @@ The responsive Chinese/English site reads the same `index.json` as the devices. 
 no Node.js build is needed. Run `python3 tools/build.py`, then
 `python3 -m http.server 8000 --directory dist` to preview at `http://localhost:8000`.
 
+### 访问与下载统计 / Visit and download counters
+
+网页通过[不蒜子公开 API](https://github.com/soxft/busuanzi/wiki/API)保存累计计数：
+页脚显示商店访问次数，应用卡片和详情显示各应用的**网页下载点击次数**，同一个应用的
+不同版本合并计算。数据从接入时开始累计，没有历史访问记录回填；不包含设备商店下载、
+直接访问包链接，也不能代表文件下载完成。刷新、搜索、筛选和切换语言只读取下载计数。
+
+统计使用独立的页面计数键（商店首页与 `__stats__/downloads/<id>`），不会把下载点击
+加到商店访问次数中。统计请求不发送 Cookie 或个人标识，不加载第三方脚本；服务仍会
+接收到发起请求的 IP 地址。计数服务不可用时显示 `—`，下载链接继续正常工作。
+构建会把部署地址写入页面；只有从这个地址打开的正式网站才会记录事件，本地预览不计数。
+
+The footer shows store page views; app cards and details show **website download-button clicks**,
+combined across versions. Counters start when enabled, with no historical backfill. Device-store and
+direct-package downloads are excluded, and clicks do not confirm completed downloads. The Busuanzi API
+stores the counts; previews do not send production events. Statistics failures never block downloads.
+
 ## 提交一个应用 / Adding an app
 
 1. `plugins/<id>/`：`manifest.json`、页面（默认 `index.html`），需要后台时加 `backend.uc`。
