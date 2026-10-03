@@ -7,6 +7,20 @@ GitHub Pages（`https://enceka.github.io/infoscreen-plugins/index.json`），设
 The app store of the E5 OpenWrt info screen.  On the screen: 高级 -> 应用管理 -> 应用商店.  Each push to
 `main` checks every app, packs them and publishes the store on GitHub Pages, where the devices read it.
 
+## 网页商店 / Web storefront
+
+打开 [应用商店](https://enceka.github.io/infoscreen-plugins/) 浏览、搜索和下载应用，
+查看安装方法；页面支持中文和英文、手机和桌面。网页从 `index.json` 读取实际应用列表，
+设备也继续使用这个索引。前端源码位于 `site/`，无需 Node.js 或额外构建依赖。
+
+本地预览：运行 `python3 tools/build.py`，然后 `python3 -m http.server 8000 --directory dist`，
+打开 `http://localhost:8000`。现有 Pages 工作流会同时发布网页、索引和应用包。
+
+Browse, search and download apps at the [web storefront](https://enceka.github.io/infoscreen-plugins/).
+The responsive Chinese/English site reads the same `index.json` as the devices. Source lives in `site/`;
+no Node.js build is needed. Run `python3 tools/build.py`, then
+`python3 -m http.server 8000 --directory dist` to preview at `http://localhost:8000`.
+
 ## 提交一个应用 / Adding an app
 
 1. `plugins/<id>/`：`manifest.json`、页面（默认 `index.html`），需要后台时加 `backend.uc`。
