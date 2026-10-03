@@ -6,7 +6,7 @@ app in plugins/ (after tools/check.py).  The packages are reproducible: sorted, 
 
 The index, as e5-infoscreen's `plugin store` / `plugin get` read it:
     { "api_version": 1, "generated": "...", "plugins": [ { "id", "version", "api_version", "name",
-      "description", "order", "backend", "size", "sha256", "url" } ] }
+      "description", "order", "input_method", "backend", "size", "sha256", "url" } ] }
 """
 import gzip, hashlib, html, io, json, os, shutil, sys, tarfile, time
 
