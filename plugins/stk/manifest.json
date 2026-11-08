@@ -1,0 +1,28 @@
+{
+	"id": "stk",
+	"api_version": 2,
+	"version": "1.0",
+	"name": {
+		"zh": "SIM 卡应用",
+		"en": "SIM toolkit"
+	},
+	"description": {
+		"zh": "STK 菜单",
+		"en": "SIM Tool Kit Menu"
+	},
+	"entry": "index.html",
+	"order": 20,
+	"notifications": true,
+	"settings": [
+		{
+			"id": "enabled",
+			"type": "toggle",
+			"uci": "e5-plugin-stk.settings.enabled",
+			"default": "1",
+			"label": {
+				"zh": "SIM 卡应用",
+				"en": "SIM toolkit"
+			}
+		}
+	]
+}
