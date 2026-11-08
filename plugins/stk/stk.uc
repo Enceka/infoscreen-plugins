@@ -551,8 +551,22 @@ return function(ctx) {
 		return text_tlv(0x04, data);
 	}
 
-	function send_envelope_menu(slot, item_id) {
-		at(slot, sprintf('AT+SPUSATENVECMD="D307820201819001%02X"', item_id & 0xFF));
+	// The terminal profile, then the query of the one in use, as the screen's
+	// own STK app sends them: only after the query does the modem run the
+	// toolkit, forwarding what the card sends and taking what is sent to it.
+	function send_profile(s, slot) {
+		if (at(slot, `AT+CUSATW=0,"${TE_PROFILE}"`) == null) return false;
+		let m = match(at(slot, 'AT+SPUSATPROFILE?') ?? '', /\+SPUSATPROFILE:[ \t]*([0-9A-Fa-f]+)/);
+		if (m) s.profile = uc(m[1]);
+		return m != null;
+	}
+
+	// A toolkit started while the modem was still bringing the cards up can
+	// have stopped again: refused, the choice is sent once more after starting it.
+	function send_envelope_menu(s, slot, item_id) {
+		let cmd = sprintf('AT+SPUSATENVECMD="D307820201819001%02X"', item_id & 0xFF);
+		if (at(slot, cmd) == null && send_profile(s, slot))
+			at(slot, cmd);
 	}
 
 	function call_setup(slot, accept) {
@@ -951,9 +965,7 @@ return function(ctx) {
 			s.view = 'empty';
 			return { ok: false, error: 'No SIM card' };
 		}
-		at(slot, `AT+CUSATW=0,"${TE_PROFILE}"`);
-		let m = match(at(slot, 'AT+SPUSATPROFILE?') ?? '', /\+SPUSATPROFILE:[ \t]*([0-9A-Fa-f]+)/);
-		if (m) s.profile = uc(m[1]);
+		send_profile(s, slot);
 		poll_ring(st);
 		if (s.menu_known && s.menu) {
 			s.view = 'menu';
@@ -1052,18 +1064,17 @@ return function(ctx) {
 			install_sim_service();
 			if (awaiting_restart()) return;
 			ensure_trace(st);
-			// A card that has just appeared is registered with the toolkit once:
-			// only then does the modem forward its proactive commands.
+			// A card that has just appeared is registered with the toolkit, until
+			// the modem takes it: only then does it forward proactive commands.
 			for (let i = 0; i < 2; i++) {
 				let hint = sim_present_hint(i), s = slot_at(st, i);
 				if (hint === false) {
 					s.present = false;
 					s.registered = false;
 				} else if (hint === true && !s.registered) {
-					s.registered = true;
 					s.present = true;
 					if (!s.iccid) s.iccid = read_iccid(i) ?? "";
-					at(i, sprintf("AT+CUSATW=0,\"%s\"", TE_PROFILE));
+					s.registered = send_profile(s, i);
 				}
 			}
 			poll_ring(st);
@@ -1236,7 +1247,7 @@ return function(ctx) {
 		sync(st);
 		let s = slot_at(st, slot);
 		if (s.view == 'menu' && !s.pending) {
-			send_envelope_menu(slot, item_id);
+			send_envelope_menu(s, slot, item_id);
 			poll_ring(st);
 			s.view = 'wait';
 			s.since = now();
