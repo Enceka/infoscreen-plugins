@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>测速</title>
+<link rel="stylesheet" href="speedtest.css?v=5">
+</head>
+<body>
+<main class="screen">
+ <section class="headlines" aria-label="测速结果">
+  <div class="headline">
+   <div class="headline-label"><span class="arrow" aria-hidden="true">↓</span> <span data-text="download">下载</span> <span class="unit">Mbps</span></div>
+   <output id="download" class="headline-value">—</output>
+  </div>
+  <div class="headline">
+   <div class="headline-label"><span class="arrow up" aria-hidden="true">↑</span> <span data-text="upload">上传</span> <span class="unit">Mbps</span></div>
+   <output id="upload" class="headline-value">—</output>
+  </div>
+ </section>
+ <section class="stats" aria-label="延迟">
+  <div class="stat"><span class="stat-label" data-text="ping">延迟</span> <output id="ping" class="stat-value">—</output> <span class="stat-unit">ms</span></div>
+  <div class="stat"><span class="stat-label" data-text="jitter">抖动</span> <output id="jitter" class="stat-value">—</output> <span class="stat-unit">ms</span></div>
+ </section>
+ <section id="dial" class="dial" aria-label="测速仪表">
+  <svg id="gauge-svg" class="gauge-svg" viewBox="0 0 196 196" aria-hidden="true" hidden>
+   <path id="gauge-arc-bg" class="gauge-arc-bg" fill="none"/>
+   <path id="gauge-arc" class="gauge-arc" fill="none"/>
+   <g id="gauge-marks"></g>
+   <g id="needle-group" hidden>
+    <polygon id="gauge-needle" class="gauge-needle"/>
+    <circle id="gauge-hub" class="gauge-hub" cx="98" cy="98" r="7"/>
+   </g>
+  </svg>
+  <button id="go-btn" class="go-btn" type="button"><span data-text="go">开始</span></button>
+  <div id="readout" class="readout" hidden>
+   <output id="readout-value" class="readout-value">···</output>
+   <span id="readout-unit" class="readout-unit"></span>
+  </div>
+ </section>
+ <section class="where">
+  <div id="network-card" class="info">
+   <svg class="info-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+   <span class="info-text"><span id="isp" class="info-top">本机网络</span><span id="ip" class="info-bottom">—</span></span>
+  </div>
+  <button id="backend-btn" class="info" type="button">
+   <svg class="info-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+   <span class="info-text"><span id="sponsor" class="info-top">切换后端</span><span id="server" class="info-bottom">全球网测</span></span>
+  </button>
+ </section>
+</main>
+<div id="backend-modal" class="scrim" hidden>
+ <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="backend-title">
+  <strong id="backend-title" data-text="backendTitle">切换后端</strong>
+  <div class="sheet-actions">
+   <button id="backend-global" class="sheet-button" type="button" data-text="backendGlobal">全球网测</button>
+   <button id="backend-speedtest" class="sheet-button" type="button">speedtest.net</button>
+   <button id="backend-cancel" class="sheet-button ghost" type="button" data-text="cancel">取消</button>
+  </div>
+ </section>
+</div>
+<div id="install-modal" class="scrim" hidden>
+ <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="install-title">
+  <strong id="install-title" data-text="installTitle">安装测速程序</strong>
+  <p id="install-body"></p>
+  <div class="sheet-actions">
+   <button id="install-confirm" class="sheet-button primary" type="button" data-text="install">下载安装</button>
+   <button id="install-cancel" class="sheet-button ghost" type="button" data-text="cancel">取消</button>
+  </div>
+ </section>
+</div>
+<div id="progress-modal" class="scrim" hidden>
+ <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="progress-title">
+  <strong id="progress-title">正在安装</strong>
+  <p id="progress-step"></p>
+  <div class="progress-line"><output id="progress-pct" class="progress-pct">0%</output></div>
+  <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+  <div class="sheet-actions">
+   <button id="progress-cancel" class="sheet-button ghost" type="button">取消</button>
+  </div>
+ </section>
+</div>
+<script src="/sdk/e5.js"></script>
+<script src="speedtest.js?v=4"></script>
+</body>
+</html>
