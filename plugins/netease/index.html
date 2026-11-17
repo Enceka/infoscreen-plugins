@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>网易云音乐</title>
+<!--
+  这层只是"跳板"：真正的页面在 main.html。
+  WPE 对同一 URL 会用启发式缓存（uhttpd 只给 ETag / Last-Modified，没有 Cache-Control），
+  改了插件在信息屏上重进应用还是旧版。跳到 main.html?t=<时间戳> 每次 URL 都不同，
+  磁盘/内存缓存都命不中。这层文件几乎不会改，所以它自己被缓存也没关系。
+
+  底色一律透明 —— 不自己画颜色。
+  以前这里写死 #0c121b，浅色主题下进应用会先闪一下深色；改成读 localStorage 也不行，
+  因为第一次进应用时键还不存在，兜底仍是深色。透明就没有这个问题：露出来的是
+  cog 的 --bg-color（session 里已按 uci ui_theme 设好）和宿主 #app-frame 的 --bg，
+  两者都跟着主题走。
+-->
+<style>
+	html, body { margin: 0; height: 100%; background: transparent; }
+</style>
+</head>
+<body>
+<script>
+	var q = location.search.replace(/^\?/, '');
+	location.replace('main.html?t=' + Date.now() + (q ? '&' + q : ''));
+</script>
+</body>
+</html>
