@@ -1,0 +1,3977 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>网易云音乐</title>
+<style>
+	/* 主题跟随信息屏：--* 全部来自 /etc/config/e5-infoscreen 的 ui_theme / ui_accent，
+	   由 /theme 接口读出来打在 body 的 data-theme / data-accent 上。 */
+	:root {
+		--bg:#0c121b; --card:#18212e; --card-2:#131922; --line:#283444;
+		--text:#f1f5fa; --dim:#96a5b9; --accent:#85ebcd; --on-accent:#0c121b;
+		--press:#1f2937; --accent-soft:#15271f; --accent-line:#2f6b4a;
+		--vip:#f0625a; --vip-line:#5a2b28; --vip-soft:rgba(240,98,90,.10);
+		--gold:#f2c14b; --gold-line:#4a3d1d; --gold-soft:rgba(242,193,75,.08);
+		--now-bg:#080b10; --now-fg:#eef4ff;
+		--glass:rgba(255,255,255,.08); --rail:rgba(255,255,255,.14);
+		--mask:rgba(4,7,11,.62); --mask-strong:rgba(4,7,11,.88);
+		--cover-shadow:0 18px 50px rgba(0,0,0,.55);
+		--sheet-shadow:0 -14px 44px rgba(0,0,0,.55);
+		--dialog-shadow:0 10px 40px rgba(0,0,0,.6);
+	}
+	body[data-accent=blue]   { --accent:#89c6ff; --accent-soft:#152234; --accent-line:#2f5d84; }
+	body[data-accent=violet] { --accent:#c3adff; --accent-soft:#211c33; --accent-line:#5b4a86; }
+	body[data-theme=light] {
+		--bg:#edf2f7; --card:#ffffff; --card-2:#f5f8fc; --line:#c6d2df;
+		--text:#17283b; --dim:#50647a; --accent:#086c57; --on-accent:#ffffff;
+		--press:#e9f0f7; --accent-soft:#e4f3ee; --accent-line:#8fc7b6;
+		--vip:#c0392f; --vip-line:#e3b4b0; --vip-soft:rgba(192,57,47,.10);
+		--gold:#8a6a12; --gold-line:#ddcfa5; --gold-soft:rgba(138,106,18,.10);
+		--now-bg:#eef3f9; --now-fg:#17283b;
+		--glass:rgba(15,30,50,.07); --rail:rgba(15,30,50,.12);
+		--mask:rgba(20,35,55,.38); --mask-strong:rgba(20,35,55,.62);
+		--cover-shadow:0 12px 30px rgba(28,48,74,.16);
+		--sheet-shadow:0 -10px 28px rgba(28,48,74,.18);
+		--dialog-shadow:0 10px 30px rgba(28,48,74,.20);
+	}
+	body[data-theme=light][data-accent=blue]   { --accent:#195ca0; --accent-soft:#e3eefb; --accent-line:#a8c4e2; }
+	body[data-theme=light][data-accent=violet] { --accent:#7041a5; --accent-soft:#ece4f7; --accent-line:#c3b0dd; }
+
+	/* 滚动交给文档本身（和宿主的设置页一样）：iframe 里用内层 overflow 容器
+	   在这台 WPE 上滚动量会被放大，跟手很差。 */
+	html, body {
+		margin: 0; min-height: 100%; color: var(--text);
+		font-family: "Noto Sans CJK SC", "DejaVu Sans", sans-serif;
+		user-select: none; -webkit-user-select: none;
+	}
+	/* 主题还没落地（body 上没有 data-theme）时不要自己画底色：
+	   --bg 的默认值是深色，浅色主题下第一帧就是一道黑闪。透明之后露出来的是
+	   宿主 #app-frame 和 cog 的底色，两者都已经跟着 uci ui_theme 走了。 */
+	body:not([data-theme]) { background: transparent; }
+	html { overflow-y: auto; background: transparent; }
+	body { background: var(--bg); }
+	body { display: block; padding-bottom: clamp(66px, 13vh, 104px); }
+
+	/* 标题栏由信息屏宿主自己画（#mobile-toolbar 里已经显示应用名），这里不再做第二层。
+	   分类和账号挤一行：分类可以横滚，账号固定在最右边。 */
+	.topbar {
+		position: sticky; top: 0; z-index: 6; background: var(--bg);
+		display: flex; align-items: center; gap: 8px;
+		padding: 8px 12px 8px; flex: 0 0 auto; }
+	.tabs { display: flex; gap: 7px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
+	.tabs::-webkit-scrollbar { display: none; }
+	.tab {
+		flex: 0 0 auto; font: inherit; font-size: clamp(12px, 2.2vh, 17px); color: var(--text);
+		background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+		padding: clamp(5px, 1vh, 9px) clamp(11px, 2vh, 17px); cursor: pointer;
+	}
+	.tab.active { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+	.acct {
+		font: inherit; font-size: 12px; color: var(--text); background: var(--card);
+		border: 0; border-radius: 999px; padding: 6px 11px; flex: 0 0 auto;
+		max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		cursor: pointer;
+	}
+	.acct.on { color: var(--on-accent); background: var(--accent); font-weight: 600; }
+	/* 登录后账号按钮就是一颗圆头像 */
+	.acct.pic {
+		background: transparent; padding: 0; border: 0; width: 30px; height: 30px;
+		max-width: 30px; border-radius: 999px; overflow: hidden;
+		box-shadow: inset 0 0 0 1px var(--line);
+	}
+	.acct.pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+	/* 歌手页没有分类行时，排序按钮挪到最右边 */
+	#back { display: flex; align-items: center; gap: 3px; padding-left: 8px; }
+	#back svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
+	#list { padding: 0 8px 8px; touch-action: pan-y; }
+	#list::-webkit-scrollbar { width: 0; }
+	/* 列表说明（多少首、哪张歌单）跟着列表滚，不占固定高度 */
+	#list .caption { color: var(--dim); font-size: 12px; padding: 4px 8px 8px;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+	.song {
+		display: flex; align-items: center; gap: clamp(8px, 1.5vh, 13px);
+		padding: clamp(8px, 1.5vh, 14px) clamp(9px, 1.6vh, 14px);
+		border-radius: clamp(9px, 1.6vh, 14px);
+		margin-bottom: clamp(3px, .7vh, 6px); background: var(--card);
+	}
+	.song:active { background: var(--press); }
+	.song .num { flex: 0 0 clamp(20px, 3.6vh, 28px); text-align: right; color: var(--dim);
+		font-size: clamp(11px, 2vh, 15px); font-variant-numeric: tabular-nums; }
+	.song .txt { flex: 1 1 auto; min-width: 0; }
+	.song .t1 { font-size: clamp(14px, 2.6vh, 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.song .t2 { font-size: clamp(11px, 2vh, 15px); color: var(--dim); margin-top: clamp(1px, .4vh, 3px);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.song .dur { flex: 0 0 auto; font-size: 12px; color: var(--dim);
+		font-variant-numeric: tabular-nums; }
+	.song.playing { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+	.song.playing .t1 { color: var(--accent); }
+	/* 非会员放不了的（VIP / 购买专辑）：压暗，自动切歌时会跳过 */
+	.song.blocked { opacity: .45; }
+	.song .vip { flex: 0 0 auto; font-size: 10px; color: var(--vip); background: var(--vip-soft);
+		border: 1px solid var(--vip-line); border-radius: 4px; padding: 0 3px; }
+	/* 金色的是音质标（超清母带），跟会员没关系 */
+	.song .hires { flex: 0 0 auto; font-size: 10px; color: var(--gold); background: var(--gold-soft);
+		border: 1px solid var(--gold-line); border-radius: 4px; padding: 0 3px; }
+
+	/* 歌单详情页的头部：封面 + 名字 + 作者/曲目数 + 简介 */
+	#plhead { display: flex; gap: 10px; padding: 8px 10px 10px; align-items: flex-start; }
+	#plhead[hidden] { display: none; }
+	.ph-cover { width: 76px; height: 76px; border-radius: 10px; flex: 0 0 auto;
+		object-fit: cover; background: var(--line); }
+	.ph-txt { flex: 1 1 auto; min-width: 0; }
+	.ph-name { font-size: 15px; font-weight: 600; line-height: 1.25;
+		display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	.ph-meta { font-size: 11px; color: var(--dim); margin-top: 4px; }
+	.ph-desc { font-size: 11px; color: var(--dim); line-height: 1.4; margin-top: 6px;
+		display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+	.coll { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+		border-radius: 10px; margin-bottom: 4px; background: var(--card); }
+	.coll:active { background: var(--press); }
+	.coll .cover { width: 48px; height: 48px; border-radius: 8px; flex: 0 0 auto;
+		background: var(--card) center/cover no-repeat; }
+	.coll .txt { flex: 1 1 auto; min-width: 0; }
+	.coll .t1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.coll .t2 { font-size: 12px; color: var(--dim); margin-top: 3px;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.coll .tag { flex: 0 0 auto; font-size: 10px; color: var(--accent);
+		border: 1px solid var(--accent-line); border-radius: 4px; padding: 1px 4px; }
+	.section { color: var(--dim); font-size: 12px; padding: 12px 6px 6px; }
+
+	/* 切页立刻换成加载态，别让上一页的列表留在屏幕上 */
+	#loading { display: flex; align-items: center; justify-content: center; gap: 9px;
+		padding: clamp(36px, 8vh, 90px) 0; color: var(--dim); font-size: clamp(12px, 2.2vh, 17px); }
+	#loading i { width: 15px; height: 15px; border-radius: 50%;
+		border: 2px solid var(--line); border-top-color: var(--accent);
+		animation: netease-spin .8s linear infinite; }
+	@keyframes netease-spin { to { transform: rotate(360deg); } }
+	#empty { color: var(--dim); font-size: 13px; text-align: center; padding: 28px 0; }
+
+	/* 底栏尺寸全跟着视口高度走：这台信息屏 CSS 视口只有 384×547，
+	   更高的机器（老人机形态）用同一套 clamp 会自动放大，不用改代码。 */
+	footer {
+		position: fixed; left: 0; right: 0; bottom: 0; z-index: 7;
+		background: var(--card-2); border-top: 1px solid var(--line);
+		padding: clamp(6px, 1.1vh, 10px) 12px;
+	}
+	.now { display: flex; align-items: center; gap: clamp(8px, 1.5vh, 13px); touch-action: pan-y; }
+	#cover {
+		width: clamp(46px, 8.4vh, 66px); height: clamp(46px, 8.4vh, 66px);
+		border-radius: 8px; flex: 0 0 auto;
+		background: var(--card) center/cover no-repeat;
+		position: relative;
+	}
+	/* 切歌时封面位置转圈：新歌还在下载/起进程，这一步可能要一两秒，
+	   不给反馈的话界面就像卡住了。 */
+	#cover.loading::after {
+		content: ''; position: absolute; inset: 0; margin: auto;
+		width: 22%; height: 22%; min-width: 14px; min-height: 14px;
+		border: 2px solid rgba(255,255,255,.28);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: cx-spin .75s linear infinite;
+	}
+	@keyframes cx-spin { to { transform: rotate(360deg); } }
+	.now .txt { flex: 1 1 auto; min-width: 0; }
+	#n-title {
+		font-size: clamp(15px, 2.8vh, 21px); font-weight: 500;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	}
+	#n-sub {
+		font-size: clamp(12px, 2.2vh, 16px); color: var(--dim); margin-top: clamp(1px, .4vh, 3px);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	}
+	.ctl { display: flex; align-items: center; gap: clamp(8px, 1.5vh, 13px); flex: 0 0 auto; }
+	.ctl button {
+		font: inherit; color: var(--text); background: var(--card); border: 0;
+		border-radius: 999px;
+		width: clamp(38px, 7vh, 54px); height: clamp(38px, 7vh, 54px);
+		font-size: clamp(14px, 2.6vh, 20px);
+		display: flex; align-items: center; justify-content: center; cursor: pointer;
+	}
+	.ctl button.main { width: 50px; height: 50px; background: var(--accent); color: var(--on-accent); }
+
+	/* 底栏播放键：无填充的圆，进度就画在这圈边上（r=20.5 → 周长 128.8） */
+	.ctl .ring {
+		position: relative; padding: 0; border: 0;
+		width: clamp(46px, 8.4vh, 66px); height: clamp(46px, 8.4vh, 66px);
+		background: transparent; color: var(--text); border-radius: 50%;
+		display: flex; align-items: center; justify-content: center;
+	}
+	.ctl .ring .ring-svg {
+		position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);
+	}
+	.ring-track { fill: none; stroke: var(--line); stroke-width: 3; }
+	.ring-bar {
+		fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round;
+		stroke-dasharray: 128.8; stroke-dashoffset: 128.8;
+		transition: stroke-dashoffset .25s linear;
+	}
+	.ctl .ring .ring-icon { position: relative; z-index: 1; display: flex; }
+	.ctl .ring .ring-icon svg { width: clamp(18px, 3.4vh, 26px); height: clamp(18px, 3.4vh, 26px); display: block; }
+	.ctl button svg { width: clamp(18px, 3.2vh, 24px); height: clamp(18px, 3.2vh, 24px); display: block; }
+	.ctl button.main svg { width: 24px; height: 24px; }
+
+	.bar { display: flex; align-items: center; gap: 8px; margin-top: 8px;
+		font-size: 11px; color: var(--dim); }
+	#seek { flex: 1 1 auto; height: 4px; border-radius: 2px; background: var(--line);
+		position: relative; overflow: hidden; }
+	#seek i { position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+		background: var(--accent); border-radius: 2px; }
+	/* 没有提示时这个 div 完全不该占高度 —— 之前 min-height+padding 顶着一条空边 */
+	#err { color: var(--vip); font-size: 12px; padding: 0; }
+	#err:empty { display: none; }
+	#err:not(:empty) { padding-top: 4px; }
+
+	/* 沉浸式播放页
+	   页面跑在信息屏的 #app-frame 里，高度不是屏幕高度：上面有状态栏(28)+标题栏(44)，
+	   下面有常驻 dock(64，可以在设置里关掉)。所以尺寸一律按 vh/弹性来，不能用固定的
+	   300px 图 + 固定间距去凑 854 —— dock 关掉或打开时 iframe 会变高变矮，CSS 自己重排。 */
+	/* ---------- 页面进出动画 ----------
+	   进入靠 `:not([hidden])` 自动触发，JS 一个字都不用改；
+	   退出必须靠 JS 延时（display:none 会立刻消失，transition 抓不到）。
+	   160ms 是手感的上限 —— 再长就显得系统迟钝了。 */
+	@keyframes pg-in {
+		from { opacity: 0; transform: translateY(24px); }
+		to   { opacity: 1; transform: none; }
+	}
+	@keyframes pg-out {
+		from { opacity: 1; transform: none; }
+		to   { opacity: 0; transform: translateY(8px) scale(.995); }
+	}
+	.anim-in { animation: pg-in .2s cubic-bezier(.22,.8,.24,1) both; }
+	/* 歌手页的退场：它没有走 hideAnim，用这个类补上 */
+	#apage.closing, #pick.closing, #login-mask.closing { animation: pg-out .15s ease-in both; pointer-events: none; }
+	/* 列表切页：从右侧推入，几何上像原生 App 的 push。
+	   纯淡入看不出"换了一页"，必须有位移 + 起始透明度，眼睛才认得出方向。 */
+	@keyframes list-in {
+		from { opacity: .35; transform: translateX(9%); }
+		to   { opacity: 1;   transform: none; }
+	}
+	#list.anim-in { animation: list-in .22s cubic-bezier(.22,.8,.24,1) both; }
+
+	/* 气泡提示：仿安卓 Toast，屏幕中下方浮一下就走 */
+	#toast {
+		position: fixed; left: 50%; bottom: 22%; z-index: 60;
+		transform: translateX(-50%) translateY(6px);
+		padding: 9px 16px; border-radius: 999px;
+		background: rgba(28, 34, 44, .92); color: #fff;
+		font-size: 13px; line-height: 1.3; white-space: nowrap;
+		box-shadow: 0 4px 16px rgba(0,0,0,.28);
+		opacity: 0; pointer-events: none;
+		transition: opacity .18s ease-out, transform .18s ease-out;
+	}
+	#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+	body[data-theme=light] #toast { background: rgba(40, 52, 66, .93); }
+
+	/* ---------- 歌手页 ---------- */
+	#apage {
+		position: fixed; inset: 0; z-index: 18; background: var(--bg);
+		overflow-y: auto; -webkit-overflow-scrolling: touch;
+		/* 滚到底别再把手势传给 body：传过去会触发主页的 loadMoreList，
+		   用歌手页的数据去加载主页列表，状态就串了 */
+		overscroll-behavior: contain;
+	}
+	#apage[hidden] { display: none; }
+	.ahero { position: relative; min-height: 30vh; padding: 56px 18px 18px; box-sizing: border-box;
+		overflow: hidden; }
+	/* 头图放大 + 模糊当背景，底部渐变收进页面底色。
+	   模糊别开太大：20px 会把图糊成一团色块，人物轮廓完全看不出，10px 刚好还有形状。 */
+	.ahero-bg {
+		position: absolute; inset: -20px; z-index: 0;
+		background: var(--card-2) center/cover no-repeat;
+		filter: blur(10px) saturate(1.1); transform: scale(1.12);
+		opacity: 0; transition: opacity .3s ease-out;
+	}
+	.ahero-mask {
+		position: absolute; inset: 0; z-index: 1;
+		background: linear-gradient(to bottom, rgba(0,0,0,.10), var(--bg) 94%);
+	}
+	.ahero-txt { position: relative; z-index: 2; }
+	#a-back {
+		position: absolute; left: 12px; top: 12px; z-index: 3;
+		width: 36px; height: 36px; border: 0; border-radius: 999px;
+		background: var(--glass); color: var(--text); cursor: pointer;
+		display: flex; align-items: center; justify-content: center;
+	}
+	#a-back svg { width: 22px; height: 22px; }
+	.aname { font-size: 24px; font-weight: 700; line-height: 1.2;
+		text-shadow: 0 1px 12px rgba(0,0,0,.25); }
+	.ameta { margin-top: 6px; font-size: 12px; color: var(--dim); }
+	.aacts { display: flex; gap: 8px; margin-top: 14px; }
+	#apage .chip {
+		height: 30px; padding: 0 14px; border: 0; border-radius: 999px;
+		font: inherit; font-size: 12px; color: var(--text); background: var(--glass);
+	}
+	#apage .chip.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+	#apage::-webkit-scrollbar { width: 0; }
+	.alist { padding: 0 12px 28px; }
+	/* 专辑网格：两列，封面 + 名字 + 年份/曲目数 */
+	.agrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 12px 28px; }
+	.agrid[style*="none"] + .alist { display: block; }
+	.aalb { cursor: pointer; }
+	.aalb .cov {
+		width: 100%; aspect-ratio: 1; border-radius: 10px; background: var(--card-2) center/cover no-repeat;
+		border: 1px solid var(--line);
+	}
+	.aalb .nm { margin-top: 5px; font-size: 12px; line-height: 1.3; color: var(--fg);
+		display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	.aalb .mt { margin-top: 2px; font-size: 10px; color: var(--dim); }
+	.aend { text-align: center; color: var(--dim); font-size: 12px; padding: 14px 0 6px; opacity: .65; }
+	/* 加载遮罩：盖住列表区域（不含头部），滚到底也能看到 */
+	.aload {
+		position: fixed; inset: 0; z-index: 20;
+		display: flex; align-items: center; justify-content: center;
+		pointer-events: none;
+	}
+	.aload[hidden] { display: none; }
+	.aload i {
+		width: 26px; height: 26px; border-radius: 50%;
+		border: 2.5px solid color-mix(in srgb, var(--accent) 22%, transparent);
+		border-top-color: var(--accent);
+		animation: aload-spin .78s linear infinite;
+	}
+	@keyframes aload-spin { to { transform: rotate(360deg); } }
+
+	#now {
+		position: fixed; inset: 0; z-index: 15; background: var(--now-bg);
+		display: flex; flex-direction: column; align-items: center;
+		padding: 0 22px clamp(14px, 3vh, 24px); box-sizing: border-box;
+	}
+	#now[hidden] { display: none; }
+	/* 背景不是直接用专辑图，而是从图上取三个主色做径向渐变再模糊 —— 比糊一张图干净得多 */
+	/* 封面的透明度由 JS 每帧写，别再加 transition，否则会互相打架 */
+	#now .bg {
+		position: absolute; inset: -24px; z-index: -1; background: var(--now-bg);
+		background-image:
+			radial-gradient(60% 48% at 16% 6%, var(--c1, transparent) 0%, transparent 68%),
+			radial-gradient(54% 44% at 88% 24%, var(--c2, transparent) 0%, transparent 70%),
+			radial-gradient(70% 58% at 50% 98%, var(--c3, transparent) 0%, transparent 74%);
+		filter: blur(6px);
+	}
+	#now .top { width: 100%; display: flex; justify-content: space-between;
+		align-items: center; padding: 14px 0 0; flex: 0 0 auto; }
+	#now-queue[hidden], #q-open[hidden], #now-like[hidden], #now-djlike[hidden] { display: none; }
+	#now-close, #now-queue {
+		font: inherit; color: var(--text);
+		background: var(--glass); border: 0; border-radius: 999px;
+		width: 36px; height: 36px; cursor: pointer;
+		display: flex; align-items: center; justify-content: center;
+	}
+	#now-close svg, #now-queue svg { width: 22px; height: 22px; }
+	#now .acts { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+	#now .ico {
+		font: inherit; color: var(--text); background: var(--glass); border: 0;
+		border-radius: 999px; width: 36px; height: 36px; cursor: pointer;
+		display: flex; align-items: center; justify-content: center;
+	}
+	#now .ico svg { width: 22px; height: 22px; }
+	#now .ico.on { color: var(--vip); }
+	/* 心动按钮点亮只变描边色：填充会把里面那条心跳线糊成一个实心块 */
+	#now-radio.on svg path { fill: none !important; }
+	#now .ico.on svg path { fill: currentColor; }
+	#now .chip {
+		font: inherit; font-size: 12px; color: var(--text); background: var(--glass);
+		border: 0; border-radius: 999px; height: 30px; padding: 0 12px;
+		cursor: pointer; white-space: nowrap;
+	}
+	#now .chip.on { color: #0b0e13; background: var(--vip); font-weight: 600; }
+	/* 歌手名可以点，跳到歌手页 */
+	#now .meta p { text-decoration: underline; text-decoration-color: var(--line); }
+	/* 图占剩下的空间，多出来的高度居中留白，少了就压图，不会把控制按钮顶出屏幕 */
+	#now .art {
+		flex: 1 1 auto; min-height: 0; width: 100%; padding: 10px 0;
+		display: flex; align-items: center; justify-content: center;
+		position: relative;
+	}
+	/* 切歌时的大封面：模糊 + 压暗，比一个小圈更容易看出"在忙"。
+	   转圈挂在外层的 .art::after 上 —— 挂在 .cover-box 里会被 blur 一起糊掉。 */
+	#now .art.loading .cover-box {
+		filter: blur(9px) saturate(.75);
+		opacity: .5;
+		transition: filter .18s ease-out, opacity .18s ease-out;
+	}
+	#now .art.loading::after {
+		content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: auto;
+		width: 34px; height: 34px;
+		border: 3px solid rgba(255,255,255,.25);
+		border-top-color: #fff;
+		border-radius: 50%;
+		animation: cx-spin .75s linear infinite;
+		z-index: 2;
+	}
+	#now .cover-box {
+		position: relative;
+		width: min(300px, 40vh); height: min(300px, 40vh);
+	}
+	#now-cover, #now-cover2 {
+		position: absolute; inset: 0;
+		border-radius: 18px;
+		background: var(--card) center/cover no-repeat;
+		box-shadow: var(--cover-shadow);
+	}
+	/* 上层永远盖着，换歌时把新图放上来做透明度过渡，旧图在下面不动 */
+	#now-cover2 { opacity: 0; pointer-events: none; }
+	/* 这首歌没封面时不要留一个带阴影的空方块 */
+	#now-cover.empty { background: var(--accent-soft); box-shadow: none; }
+	/* 点封面/标题切到歌词页，再点一下回封面 */
+	#now .lyr { display: none; }
+	#now.lyrics-mode .art, #now.lyrics-mode .meta { display: none; }
+	#now.lyrics-mode .lyr {
+		display: block; flex: 1 1 auto; min-height: 0; width: 100%;
+		overflow-y: auto; padding: 4px 2px; touch-action: pan-y; overscroll-behavior: contain;
+	}
+	#now .lyr::-webkit-scrollbar { width: 0; height: 0; }
+	#lyr-inner { position: relative; }
+	.lyr-line { padding: 6px; text-align: center; color: var(--dim);
+		font-size: 15px; line-height: 1.4; transition: color .18s ease, font-size .18s ease; }
+	.lyr-line.on { color: var(--now-fg); font-size: 17px; font-weight: 600; }
+	.lyr-line .tr { display: block; font-size: 12px; font-weight: 400; color: var(--dim); margin-top: 3px; }
+	.lyr-line.on .tr { color: var(--accent); }
+	.lyr-empty { color: var(--dim); text-align: center; padding: 26px 0; font-size: 13px; }
+	#now .meta { flex: 0 0 auto; width: 100%; margin-top: clamp(10px, 2.4vh, 24px); min-width: 0; }
+	#now .meta h2 { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.3;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	#now .meta p { margin: 8px 0 0; font-size: 14px; color: var(--dim);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* 试听片段结束的位置：一个小白点，告诉用户"再往后没有了" */
+	#now .track { position: relative; }
+	#trial-dot {
+		position: absolute; top: 50%; width: 7px; height: 7px;
+		margin: -3.5px 0 0 -3.5px; border-radius: 50%;
+		background: #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,.35);
+		pointer-events: none; z-index: 2;
+	}
+	#now .progress { width: 100%; margin-top: clamp(8px, 2.4vh, 24px); flex: 0 0 auto; }
+	/* 5px 的条按不准，外面留一圈 padding 当触摸区 */
+	#now .track { padding: 11px 0 5px; margin-bottom: 2px; cursor: pointer; touch-action: none; }
+	#now .track .rail { display: block; height: 5px; border-radius: 3px;
+		background: var(--rail); overflow: hidden; }
+	#now .track i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; }
+	#now .times { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim);
+		font-variant-numeric: tabular-nums; }
+	#now .controls { flex: 0 0 auto; display: flex; align-items: center;
+		gap: clamp(18px, 7vw, 34px); margin-top: clamp(14px, 3.2vh, 32px); }
+	#now .controls button {
+		font: inherit; color: var(--text); background: var(--glass); border: 0;
+		border-radius: 999px; width: 56px; height: 56px;
+		display: flex; align-items: center; justify-content: center; cursor: pointer;
+	}
+	#now .controls button.main { width: 74px; height: 74px; background: var(--accent); color: var(--on-accent); }
+	#now .controls svg { width: 26px; height: 26px; }
+	#now .controls button.main svg { width: 32px; height: 32px; }
+
+	/* 播放列表（从底部升起的浮层，遮罩点一下就收） */
+	#queue, #pick, #ssheet, #plpick {
+		position: fixed; inset: 0; z-index: 30; background: var(--mask);
+		display: flex; flex-direction: column; justify-content: flex-end;
+	}
+	#queue[hidden], #pick[hidden], #ssheet[hidden], #plpick[hidden] { display: none; }
+	#queue .qsheet, #pick .qsheet, #ssheet .qsheet, #plpick .qsheet {
+		background: var(--card); border-radius: 16px 16px 0 0;
+		max-height: 82%; display: flex; flex-direction: column;
+		overflow: hidden;            /* 不裁的话 flex 子项会被内容撑开，滚动就失效 */
+		box-shadow: var(--sheet-shadow);
+	}
+	#queue .qhead, #pick .qhead, #ssheet .qhead, #plpick .qhead { display: flex; align-items: center; gap: 8px;
+		padding: 12px 12px 10px 14px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+	#queue .qhead .qt, #pick .qhead .qt { flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 600;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	#queue .qhead .qn { color: var(--accent); font-weight: 400; font-size: 13px; }
+	#q-clear {
+		flex: 0 0 auto; font: inherit; font-size: 12px; color: var(--dim);
+		background: transparent; border: 1px solid var(--line); border-radius: 999px;
+		padding: 6px 11px; cursor: pointer; white-space: nowrap;
+	}
+	#q-close, #p-close, #ss-close, #pl-close {
+		flex: 0 0 auto; font: inherit; color: var(--text); background: var(--card); border: 0;
+		border-radius: 999px; width: 30px; height: 30px; cursor: pointer;
+		display: flex; align-items: center; justify-content: center;
+	}
+	#q-close svg, #p-close svg, #ss-close svg, #pl-close svg { width: 16px; height: 16px; }
+	#qlist, #plist { flex: 1 1 auto; min-height: 0;   /* min-height:0 是 flex 里能滚的前提 */
+		overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain;
+		padding: 6px 8px 12px; }
+	.qrow { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+		border-radius: 10px; margin-bottom: 4px; background: var(--card-2); }
+	.q-del { flex: 0 0 auto; width: 28px; height: 28px; display: flex; align-items: center;
+		justify-content: center; background: transparent; border: 0; color: var(--dim);
+		border-radius: 8px; }
+	.q-del:active { background: var(--press); }
+	.q-del svg { width: 15px; height: 15px; fill: none; stroke: currentColor;
+		stroke-width: 2.2; stroke-linecap: round; }
+	.qrow:active { background: var(--press); }
+	.qrow .qi { flex: 0 0 24px; text-align: right; font-size: 12px; color: var(--dim);
+		font-variant-numeric: tabular-nums; }
+	.qrow .qn2 { flex: 1 1 auto; min-width: 0; }
+	.qrow .q1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.qrow .q2 { font-size: 11px; color: var(--dim); margin-top: 2px;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.qrow.cur { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+	.qrow.cur .q1 { color: var(--accent); }
+	.qrow.cur .qi { color: var(--accent); }
+	/* 长按歌曲弹出的动作菜单 */
+	/* 收藏页顶部的三段切换 */
+	.seg { display: flex; gap: 7px; padding: 6px 10px 2px; }
+	.seg[hidden] { display: none; }
+	.seg button { flex: 1 1 0; padding: 7px 0; font: inherit; font-size: 12px;
+		color: var(--text); background: var(--card); border: 1px solid var(--line);
+		border-radius: 999px; }
+	.seg button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+	.ss-item { display: flex; align-items: center; gap: 10px; width: 100%;
+		padding: 13px 12px; font-size: 14px; text-align: left; color: var(--text);
+		background: transparent; border: 0; border-bottom: 1px solid var(--line);
+		transition: transform .12s ease, background-color .15s ease; }
+	.ss-item:active { background: var(--press); transform: scale(.98); }
+	/* 这个页面没有全局 [hidden] 规则，而 .ss-item 自己设了 display:flex，
+	   不加这条的话 hidden 属性会被 flex 盖掉 —— 播客单集里那些不该出现的项
+	   （不喜欢/收藏到歌单/歌手/专辑）就还是显示着。 */
+	.ss-item[hidden] { display: none !important; }
+	.ss-item.end { border-bottom: 0; color: var(--dim); justify-content: center; }
+	.ss-item .ss-ico { flex: 0 0 20px; width: 20px; height: 20px; opacity: .75; }
+	.ss-item .ss-ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor;
+		stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+	#qlist .qempty { color: var(--dim); font-size: 13px; text-align: center; padding: 26px 0; }
+
+	#login-mask {
+		position: fixed; inset: 0; background: var(--mask-strong);
+		display: flex; align-items: center; justify-content: center; z-index: 20;
+	}
+	#login-mask[hidden] { display: none; }
+	#login-mask .sheet {
+		background: var(--card); border-radius: 16px; padding: 18px;
+		width: 330px; text-align: center; box-shadow: var(--dialog-shadow);
+	}
+	#login-mask h2 { margin: 0 0 12px; font-size: 17px; font-weight: 600; }
+	#qr { background: #fff; border-radius: 10px; padding: 8px; width: 230px; height: 230px;
+		margin: 0 auto; display: flex; align-items: center; justify-content: center; }
+	#qr svg { width: 100%; height: 100%; display: block; }
+	/* 已登录时这里不放二维码，改成一圈头像 */
+	#qr.pic { background: transparent; width: 112px; height: 112px; padding: 0;
+		border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); }
+	#qr.pic img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+	#qr-status { color: var(--dim); font-size: 13px; margin: 12px 0 14px;
+		min-height: 36px; line-height: 1.4; }
+	#login-mask button.close {
+		font: inherit; font-size: 14px; color: var(--text); background: var(--card);
+		border: 0; border-radius: 10px; padding: 10px 22px; cursor: pointer;
+		margin: 0 4px;
+	}
+	/* ---------- 动效 ----------
+	   只用 transform / opacity，走合成层，T760 上不掉帧；时长 150~260ms。 */
+	@keyframes nt-fade { from { opacity: 0 } to { opacity: 1 } }
+	@keyframes nt-pop { from { transform: scale(.94); opacity: 0 } to { transform: none; opacity: 1 } }
+	@keyframes nt-up { from { transform: translateY(100%); opacity: .7 } to { transform: none; opacity: 1 } }
+	@keyframes nt-down { to { transform: translateY(100%); opacity: 0 } }
+	#now .meta.swap { animation: nt-list .28s ease-out both; }
+	@keyframes nt-slide-l { from { transform: translateX(26px); opacity: .4 } to { transform: none; opacity: 1 } }
+	@keyframes nt-slide-r { from { transform: translateX(-26px); opacity: .4 } to { transform: none; opacity: 1 } }
+	#list.slide-l { animation: nt-slide-l .2s cubic-bezier(.22,.8,.28,1) both; }
+	#list.slide-r { animation: nt-slide-r .2s cubic-bezier(.22,.8,.28,1) both; }
+	@keyframes nt-list { from { transform: translateY(6px); opacity: 0 } to { transform: none; opacity: 1 } }
+
+	#now:not([hidden]) { animation: nt-up .24s cubic-bezier(.22,.8,.28,1) both; }
+	#now.closing { animation: nt-down .2s ease-in forwards; }
+	#queue:not([hidden]), #ssheet:not([hidden]), #plpick:not([hidden]) {
+		animation: nt-fade .18s ease-out both;
+	}
+	#queue:not([hidden]) .qsheet,
+	#ssheet:not([hidden]) .qsheet,
+	#plpick:not([hidden]) .qsheet { animation: nt-up .22s cubic-bezier(.22,.8,.28,1) both; }
+	#queue.closing, #ssheet.closing, #plpick.closing { animation: nt-fade .16s ease-in reverse both; }
+	#queue.closing .qsheet, #ssheet.closing .qsheet, #plpick.closing .qsheet {
+		animation: nt-down .16s ease-in both;
+	}
+	#login-mask:not([hidden]) { animation: nt-fade .18s ease-out both; }
+	#login-mask:not([hidden]) .sheet { animation: nt-pop .2s cubic-bezier(.22,.8,.28,1) both; }
+	#loading { animation: nt-fade .2s ease-out both; }
+	/* 换窗口时整段行会重建，这里不能带入场动画，否则每次滚动都闪一下 */
+
+	/* 按压反馈：所有可点的东西都缩一下 */
+	.song, .ctl button, .tab, .acct, .chip, #now .ico, .qrow, .coll,
+	#now-toggle, #now-close, #now-queue, #now-prev, #now-next, #q-close, #p-close {
+		transition: transform .12s ease, background-color .15s ease, color .15s ease, opacity .15s ease;
+	}
+	.song:active, .ctl button:active, .tab:active, .acct:active, .chip:active,
+	#now .ico:active, .qrow:active, .coll:active,
+	#now-toggle:active, #now-close:active, #now-queue:active, #now-prev:active, #now-next:active {
+		transform: scale(.94);
+	}
+	#now-toggle:active, #now .ico:active, #now-close:active, #now-prev:active, #now-next:active { transform: scale(.9); }
+
+	/* [hidden] 必须压过上面那些 display:flex —— 写在最后，同优先级但更晚 */
+	#now-close[hidden], #now-queue[hidden], #now .ico[hidden], #now .chip[hidden],
+	#q-open[hidden], #back[hidden], #tabs[hidden],
+	#account[hidden], #fm[hidden] { display: none; }
+</style>
+</head>
+<body>
+<script>
+	/* 首帧之前就把主题贴上。applyTheme() 要等 /theme 接口回来，那期间页面会用默认
+	   深色渲染一次 —— 浅色模式下就是进应用时的一道深色闪屏。这里同步读上次的缓存，
+	   颜色值跟 CSS 里的 light 定义保持一致，读不到就不设，交给 applyTheme 兜底。 */
+	(function () {
+		try {
+			var t = localStorage.getItem('netease-theme');
+			if (!t) return;
+			document.body.dataset.theme = t;
+			document.documentElement.style.colorScheme = t;
+			var a = localStorage.getItem('netease-accent');
+			if (a) document.body.dataset.accent = a;
+		} catch (e) {}
+	})();
+</script>
+
+<div class="topbar">
+	<button id="back" class="acct" hidden><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button>
+	<div class="tabs" id="tabs"></div>
+	<button id="favbtn" class="acct" hidden>收藏</button>
+	<button id="fm" class="acct">FM</button>
+	<button id="account" class="acct">登录</button>
+</div>
+
+<div id="favseg" class="seg" hidden>
+	<button data-fav="album">专辑</button>
+	<button data-fav="artist">歌手</button>
+	<button data-fav="podcast">播客</button>
+</div>
+
+<div id="plhead" hidden></div>
+
+<div id="list"><div id="empty">还没有内容</div></div>
+
+<footer>
+	<div class="now" id="nowbar">
+		<div id="cover"></div>
+		<div class="txt">
+			<div id="n-title">未在播放</div>
+			<div id="n-sub">选一首歌</div>
+		</div>
+		<div class="ctl">
+			<button id="toggle" class="ring" aria-label="播放">
+				<svg class="ring-svg" viewBox="0 0 44 44" aria-hidden="true">
+					<circle class="ring-track" cx="22" cy="22" r="20.5"/>
+					<circle class="ring-bar" id="ring-bar" cx="22" cy="22" r="20.5"/>
+				</svg>
+				<span class="ring-icon" id="toggle-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span>
+			</button>
+			<button id="q-open" aria-label="播放列表"><svg viewBox="0 0 24 24"><path d="M4 6h12M4 11h12M4 16h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="18" r="2.4" fill="currentColor"/><path d="M18 18V9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+		</div>
+	</div>
+	<div id="err"></div>
+</footer>
+
+<div id="now" hidden>
+	<div class="bg" id="now-bg"></div>
+	<div class="top">
+		<button id="now-close" aria-label="收起"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+		<div class="acts">
+			<button id="now-like" class="ico" aria-label="喜欢"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg></button>
+			<button id="now-dislike" class="chip">不想听</button>
+			<button id="now-djlike" class="ico" aria-label="点赞" hidden><svg viewBox="0 0 24 24"><path d="M7 21h9.1a3 3 0 0 0 2.9-2.2l1.6-5.6A2 2 0 0 0 18.7 10H14l.8-3.4A2.6 2.6 0 0 0 12.3 3.5L8 10M4 21h3V10H4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/></svg></button>
+			<button id="now-mode" class="ico" aria-label="播放顺序"></button>
+			<button id="now-queue" aria-label="播放列表"><svg viewBox="0 0 24 24"><path d="M4 6h12M4 11h12M4 16h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="18" r="2.4" fill="currentColor"/><path d="M18 18V9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+		</div>
+	</div>
+	<div class="art">
+		<div class="cover-box">
+			<div id="now-cover"></div>
+			<div id="now-cover2"></div>
+		</div>
+	</div>
+	<div class="meta">
+		<h2 id="now-title">未在播放</h2>
+		<p id="now-sub">选一首歌</p>
+	</div>
+	<div class="lyr" id="lyr"><div id="lyr-inner"></div></div>
+	<div class="progress">
+		<div class="track" id="now-track"><span class="rail"><i id="now-bar"></i></span><i id="trial-dot" style="display:none"></i></div>
+		<div class="times"><span id="now-cur">0:00</span><span id="now-dur">0:00</span></div>
+	</div>
+	<div class="controls">
+		<button id="now-prev" aria-label="上一首"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z" fill="currentColor"/></svg></button>
+		<button id="now-toggle" class="main" aria-label="播放"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button>
+		<button id="now-next" aria-label="下一首"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z" fill="currentColor"/></svg></button>
+	</div>
+</div>
+
+<!-- 歌手页：独立全屏（沉浸页的歌手名、长按菜单的"歌手"都跳这里） -->
+<div id="apage" hidden>
+	<div class="ahero">
+		<div class="ahero-bg" id="a-bg"></div>
+		<div class="ahero-mask"></div>
+		<button id="a-back" aria-label="返回"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+		<div class="ahero-txt">
+			<div class="aname" id="a-name"></div>
+			<div class="ameta" id="a-meta"></div>
+			<div class="aacts">
+				<button id="a-follow" class="chip">关注</button>
+				<button id="a-tab-songs" class="chip on">歌曲</button>
+				<button id="a-tab-albums" class="chip">专辑</button>
+				<button id="a-sort" class="chip">热度</button>
+			</div>
+		</div>
+	</div>
+	<div class="agrid" id="a-albums" style="display:none"></div>
+	<div class="alist" id="a-list">
+		<div id="a-top"></div>
+		<div id="a-rows"></div>
+		<div id="a-bot"></div>
+		<div class="aend" id="a-end" style="display:none">到底了</div>
+	</div>
+	<div class="aload" id="a-load" style="display:none"><i aria-hidden="true"></i></div>
+</div>
+
+<div id="queue" hidden>
+	<div class="qsheet">
+		<div class="qhead">
+			<span class="qt">播放列表 <span class="qn" id="qcount"></span></span>
+			<button id="q-clear">清空</button>
+			<button id="q-close" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+		</div>
+		<div id="qlist"></div>
+	</div>
+</div>
+
+<div id="ssheet" hidden>
+	<div class="qsheet">
+		<div class="qhead">
+			<span class="qt" id="ss-title">歌曲</span>
+			<button id="ss-close" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+		</div>
+		<div class="ss-list" id="ss-list">
+			<button class="ss-item" data-act="next"><span class="ss-ico"><svg viewBox="0 0 24 24"><path d="M4 6h10v12H4zM17 5v14m0-7 4-3v6z"/></svg></span>下一首播放</button>
+			<button class="ss-item" data-act="like"><span class="ss-ico"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.5-7 9-7 9z"/></svg></span><span id="ss-like-label">喜欢</span></button>
+			<button class="ss-item" data-act="dislike"><span class="ss-ico"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 9l6 6M15 9l-6 6"/></svg></span>不喜欢</button>
+			<button class="ss-item" data-act="addto"><span class="ss-ico"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>收藏到歌单</button>
+			<button class="ss-item" data-act="artist"><span class="ss-ico"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>歌手</button>
+			<button class="ss-item" data-act="album"><span class="ss-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg></span>专辑</button>
+			<button class="ss-item end" data-act="cancel">取消</button>
+		</div>
+	</div>
+</div>
+
+<div id="plpick" hidden>
+	<div class="qsheet">
+		<div class="qhead">
+			<span class="qt">收藏到歌单</span>
+			<button id="pl-close" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+		</div>
+		<div id="pl-list"></div>
+	</div>
+</div>
+
+<div id="pick" hidden>
+	<div class="qsheet">
+		<div class="qhead">
+			<span class="qt">选择歌手</span>
+			<button id="p-close" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+		</div>
+		<div id="plist"></div>
+	</div>
+</div>
+
+<div id="toast"></div>
+
+<div id="login-mask" hidden>
+	<div class="sheet">
+		<h2 id="login-title">扫码登录</h2>
+		<div id="qr"></div>
+		<p id="qr-status">正在获取二维码…</p>
+		<button class="close" id="cache-clear">清理缓存</button>
+		<button class="close" id="login-action" hidden></button>
+		<button class="close" id="login-close">关闭</button>
+	</div>
+</div>
+
+<script src="/sdk/e5.js"></script>
+<script>
+'use strict';
+// 部署时不用改它；用来在日志里区分"跑的是不是新版"（跟文件行号一起看）
+const APP_VER = '2026-11-03T14-14';
+
+// 播放由后端负责（mpg123 | pacat，走 PulseAudio），前端只做界面和本地计时。
+// 卡片式（歌单/电台入口）的分类：从这些页点进详情，返回要回原页
+const COLL_TABS = new Set(['reco', 'mylists', 'podcasts', 'fav']);
+
+const TABS = [
+	{ id: 'daily',    label: '每日推荐' },
+	{ id: 'liked',    label: '我喜欢' },
+	{ id: 'reco',     label: '私人' },
+	{ id: 'mylists',  label: '歌单' },
+	{ id: 'podcasts', label: '播客' },
+	{ id: 'fav',      label: '收藏' }
+];
+
+const $ = (id) => document.getElementById(id);
+
+// songs/index 是**播放队列**；viewSongs/viewSrc 是**当前正在浏览的列表**。
+// 两者分开，否则切去看别的列表（歌单/歌手）再点下一首，队列就会被那个列表顶掉。
+let songs = [];
+let viewSongs = [];
+let index = -1;
+let playing = false, paused = false, posMs = 0, lastTick = 0, timer = null;
+let curDuration = 0;   // 当前曲目时长，恢复播放时不依赖列表
+let curCover = '';     // 当前封面（后端给的本地路径）
+let curId = 0;         // 后端正在放的歌 id：跟 /status 对账用
+// 当前列表的来源（后端续播时按同一个接口再拉一遍）。列表页/歌单页切换时更新
+let listSrc = null;    // 队列的来源（后端续播按它重拉）
+let viewSrc = null;    // 正在浏览的列表来源
+// 歌手页分页状态
+let artistTotal = 0, artistMore = 0, artistLoading = false, artistName = '', listName = '';
+// 歌单详情页的头部数据（封面/简介/作者）；为 null 时不显示
+let viewHead = null;
+// 从哪个"歌单列表页"点进来的：返回时要回到那个分类，并滚到那个入口
+let collBack = null;
+// 最近一次卡片页的数据快照（返回时同步重建，省一次网络往返）
+let collSnapshot = null;
+let artistOrder = 'hot';    // 歌手页排序：hot 热度 / time 时间
+let backState = null;       // 进歌手页之前的列表，返回时还原
+let busy = false;
+let me = null;
+let switching = false;   // 正在切歌：/play 还没回来，tick 别再来一次
+let playToken = 0;       // 后发的 /play 赢，先发的回来就丢掉
+let curTab = 'daily';   // 当前列表属于哪个分类，重进时用来还原
+
+// 播放顺序：列表循环 / 单曲循环 / 随机 / 顺序（放完最后一首就停）
+const MODES = [
+	{ id: 'loop',    label: '列表循环' },
+	{ id: 'one',     label: '单曲循环' },
+	{ id: 'shuffle', label: '随机播放' },
+	{ id: 'order',   label: '顺序播放' },
+	{ id: 'radio',   label: '心动模式' }
+];
+const MODE_KEY = 'netease.mode';
+let playMode = 'loop';
+// 进心动模式前的来源，切走时用来还原（listSrc 会被临时改成 radio）
+// 必须持久化：退出应用重进后还要能切回原来的列表，否则还原不回去
+var srcBeforeRadio = null;
+// 试听歌曲的进度上限（秒）。0 = 不限。
+// 非会员放 VIP 歌时只拿到 30 秒片段，进度条允许拖，但拖不过这个范围。
+var trialLimitSec = 0;
+// 心动模式计数器：每播 3 首插 1 首推荐（3:1，和官方形态一致）
+var radioN = 0;
+
+// 往队列里插一首推荐歌（插在下一首的位置，不是队尾）
+function radioInject() {
+	if (!listSrc || listSrc.kind !== 'radio') return;
+	const seed = curId || 0;
+	if (!seed) return;
+	e5.api('/radiopick?id=' + encodeURIComponent(seed)).then(function (d) {
+		if (!d || !d.ok || !d.song) return;
+		// 已经在队列里就不重复插
+		if (songs.some(function (x) { return String(x.id) === String(d.song.id); })) return;
+		const at = Math.min(index + 1, songs.length);
+		songs.splice(at, 0, d.song);
+		saveQueue(curTab, listHint);
+	}).catch(function () {});
+}
+try {
+	const raw = localStorage.getItem('netease.src-before-radio');
+	if (raw) srcBeforeRadio = JSON.parse(raw);
+} catch (e) { /* ignore */ }
+
+function setSrcBeforeRadio(v) {
+	srcBeforeRadio = v;
+	try {
+		if (v) localStorage.setItem('netease.src-before-radio', JSON.stringify(v));
+		else localStorage.removeItem('netease.src-before-radio');
+	} catch (e) { /* ignore */ }
+}
+try { playMode = localStorage.getItem(MODE_KEY) || 'loop'; } catch (e) { /* ignore */ }
+if (!MODES.some((m) => m.id === playMode)) playMode = 'loop';
+const modeLabel = () => (MODES.find((m) => m.id === playMode) || MODES[0]).label;
+let hist = [];   // 随机播放时记走过的位置，"上一首"往回退
+
+// 退出应用时页面会被 e5 整个重载，队列只存在内存里会丢；
+// 后端只负责放歌，前端把列表和序号存到 localStorage，重进才接得上上一首/下一首。
+const QUEUE_KEY = 'netease.queue';
+const IDX_KEY = 'netease.idx';
+
+function saveQueue(tabId, label) {
+	curTab = tabId;
+	try {
+		localStorage.setItem(QUEUE_KEY,
+			JSON.stringify({ tab: tabId, label: label || '', src: listSrc, songs: songs }));
+		localStorage.setItem(IDX_KEY, String(index));
+	} catch (e) { /* 存不下就算了，不影响播放 */ }
+}
+
+function saveIndex() {
+	try { localStorage.setItem(IDX_KEY, String(index)); } catch (e) { /* ignore */ }
+}
+
+// 告诉后端"当前列表是从哪儿来的"。息屏/退到后台页面就没了，
+// 续播只能由后端按同一个接口把列表再拉一遍，所以这里只传来源不传列表。
+function syncPlan() {
+	if (!listSrc) return;
+	e5.api('/plan?kind=' + encodeURIComponent(listSrc.kind) +
+		'&sid=' + (listSrc.sid || 0) + '&mode=' + playMode +
+		'&order=' + artistOrder).catch(() => {});
+}
+
+function loadQueue() {
+	try {
+		const raw = localStorage.getItem(QUEUE_KEY);
+		if (!raw) return null;
+		const q = JSON.parse(raw);
+		return (q && Array.isArray(q.songs) && q.songs.length) ? q : null;
+	} catch (e) { return null; }
+}
+
+const fmt = (ms) => {
+	const s = Math.max(0, Math.round((ms || 0) / 1000));
+	return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+};
+const setErr = (m) => { $('err').textContent = m || ''; };
+
+// 会员状态：/login/me 带回来的 vip(1/0)。没登录按非会员算。
+const isVip = () => !!(me && me.vip);
+// fee 1 = VIP，4 = 购买专辑：非会员放不出来，自动切歌时直接跳过
+const songBlocked = (s) => !!s && !isVip() && (s.fee === 1 || s.fee === 4);
+
+// 播放/暂停用内嵌 SVG：设备字体里没有 ⏸ ▶ 这些媒体符号，会显示成方块
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
+const setToggleIcon = (isPlaying) => {
+	const t = $('toggle-icon');
+	if (t) t.innerHTML = isPlaying ? ICON_PAUSE : ICON_PLAY;
+	const n = document.getElementById('now-toggle');
+	if (n) n.innerHTML = isPlaying ? ICON_PAUSE : ICON_PLAY;
+};
+
+/* ---------- 渲染 ---------- */
+
+// 列表说明放列表里面当第一行（跟着滚），不占固定高度
+let listHint = '';
+
+function paintHint() {
+	const l = $('list');
+	let c = l.querySelector('.caption');
+	if (!listHint) { if (c) c.remove(); return; }
+	if (!c) {
+		c = document.createElement('div');
+		c.className = 'caption';
+		l.insertBefore(c, l.firstChild);
+	}
+	c.textContent = listHint;
+}
+
+function setHint(t) { listHint = t || ''; paintHint(); }
+
+// 气泡提示。安卓那种：浮一下、自己消失，不占布局、不挡操作。
+var toastTimer = 0;
+function toast(msg) {
+	var el = $('toast');
+	if (!el || !msg) return;
+	el.textContent = msg;
+	el.classList.add('on');
+	if (toastTimer) clearTimeout(toastTimer);
+	toastTimer = setTimeout(function () {
+		el.classList.remove('on');
+		toastTimer = 0;
+	}, 1400);
+}
+
+// fee: 0 免费 / 1 VIP / 4 购买专辑 / 8 低音质免费（官方也不打 VIP 标）
+// hires: 有超清母带。两个标互不相干，颜色也别混：VIP 红、母带金。
+function songTags(s) {
+	let h = '';
+	if (s.fee === 1 || s.fee === 4) h += '<div class="vip">VIP</div>';
+	if (s.hires) h += '<div class="hires">母带</div>';
+	return h;
+}
+
+// 列表区域的临时占位：切页/加载中/失败都用它，避免上一页残留在屏幕上。
+// 本地接口常常 30ms 就回来, 加载态会一闪而过甚至来不及绘制 —— 所以给它一个
+// 最短显示时间, renderSongs 会等到这个时间到了才真正重画。
+const MIN_LOAD_MS = 320;
+let loadingAt = 0;
+
+function listMsg(text, spin) {
+	loadingAt = Date.now();
+	$('list').innerHTML = '<div id="loading">' + (spin ? '<i></i>' : '') + text + '</div>';
+}
+
+// 只更新"正在播放"那一行的高亮。切歌时如果整表重建，几千行的 DOM 会把
+// 主线程堵住半秒（手势动画就被推迟到那时候才开始），所以单独走这个轻量版。
+function markPlaying() {
+	const box = $('sp-rows');
+	if (!box) return;
+	const rows = box.children;
+	for (let i = 0; i < rows.length; i++) rows[i].classList.remove('playing');
+	// 认"真正在放的那首"（curId），不认 songs[index]：离开页面再回来时
+	// 队列可能已被后端换掉，songs[index] 就不是正在放的了，强调色会丢。
+	const playing = curId ? { id: curId } : null;
+	if (!playing) return;
+	for (let i = 0; i < rows.length; i++) {
+		const idx = parseInt(rows[i].dataset.i, 10);
+		if (viewSongs[idx] && String(viewSongs[idx].id) === String(playing.id)) {
+			rows[i].classList.add('playing');
+			return;
+		}
+	}
+}
+
+// 列表按窗口渲染：一次只建 50 行，滚到哪儿就换哪一段，上下用占位块撑高度。
+// 整表渲染（几百上千行）是滑动掉帧的主因。
+let winFrom = -1, winTo = -1, rowH = 0, winRaf = 0;
+const WIN = 50;        // 一次渲染多少行
+const OVER = 6;        // 上下各多渲染几行，滚动时不会露出空白
+const PAGE = 25;       // 窗口按 25 行对齐，避免每滚一行就重建
+
+let cardMode = false;      // 歌手页用带封面的卡片样式，其它列表仍是紧凑行
+
+function rowCardFor(s, i, playing) {
+	// 卡片版：复用收藏页 .coll 的版式（封面 + 标题 + 副标题），
+	// 点击/长按的行为跟紧凑行完全一致，别在换皮的时候把功能丢了。
+	const row = document.createElement('div');
+	row.className = 'coll' +
+		((playing && String(playing.id) === String(s.id)) ? ' playing' : '') +
+		(songBlocked(s) ? ' blocked' : '');
+	row.dataset.i = i;
+	row.innerHTML = '<div class="cover"></div><div class="txt">' +
+		'<div class="t1"></div><div class="t2"></div></div>' + songTags(s);
+	row.querySelector('.t1').textContent = s.name;
+	row.querySelector('.t2').textContent = s.album ? (s.artist + ' · ' + s.album) : s.artist;
+	if (s.cover) row.querySelector('.cover').style.backgroundImage = 'url("' + s.cover + '")';
+	row.onclick = () => {
+		if (longPressAteClick()) return;
+		if (String(s.id) === String(curId)) {
+			songs = viewSongs.slice();
+			index = i;
+			// 来源也要跟着换！只换队列不换来源的话，listSrc 还停在心动模式，
+			// 紧接着 syncPlan() 会把 kind=radio 又写回后端 —— 后端按心动模式推新歌，
+			// 于是"点的这首"没动，播的却换成了别的。
+			if (viewSrc) listSrc = viewSrc;
+			// 既然在看别的列表，就不再是心动模式了
+			if (playMode === 'radio') {
+				playMode = 'loop';
+				try { localStorage.setItem(MODE_KEY, playMode); } catch (e) {}
+				setSrcBeforeRadio(null);
+			}
+			saveQueue(curTab, listHint);
+			syncPlan();
+			paintMode();
+			openNow();
+			return;
+		}
+		startQueue(i);
+	};
+	bindLongPress(row, () => openSongSheet(s));
+	return row;
+}
+
+function rowFor(s, i, playing) {
+	if (cardMode) return rowCardFor(s, i, playing);
+	const row = document.createElement('div');
+	row.className = 'song' +
+		((playing && String(playing.id) === String(s.id)) ? ' playing' : '') +
+		(songBlocked(s) ? ' blocked' : '');
+	row.dataset.i = i;
+	row.innerHTML =
+		'<div class="num">' + (i + 1) + '</div>' +
+		'<div class="txt"><div class="t1"></div><div class="t2"></div></div>' +
+		songTags(s) +
+		'<div class="dur">' + fmt(s.duration) + '</div>';
+	row.querySelector('.t1').textContent = s.name;
+	row.querySelector('.t2').textContent = s.artist + (s.album ? ' · ' + s.album : '');
+	row.style.setProperty('--i', Math.min(i - (winFrom < 0 ? 0 : winFrom), 8));
+	row.onclick = () => {
+		if (longPressAteClick()) return;   // 长按弹出的菜单，别再顺手播一遍
+		// 点的就是正在放的那首：把当前列表接成播放队列（这首保持它在这个列表里的位置），
+		// 然后打开沉浸页 —— 不重新播放，但"上一首/下一首"从此按这个列表走。
+		if (String(s.id) === String(curId)) {
+			songs = viewSongs.slice();
+			index = i;
+			// 来源也要跟着换！只换队列不换来源的话，listSrc 还停在心动模式，
+			// 紧接着 syncPlan() 会把 kind=radio 又写回后端 —— 后端按心动模式推新歌，
+			// 于是"点的这首"没动，播的却换成了别的。
+			if (viewSrc) listSrc = viewSrc;
+			// 既然在看别的列表，就不再是心动模式了
+			if (playMode === 'radio') {
+				playMode = 'loop';
+				try { localStorage.setItem(MODE_KEY, playMode); } catch (e) {}
+				setSrcBeforeRadio(null);
+			}
+			saveQueue(curTab, listHint);
+			syncPlan();
+			paintMode();
+			openNow();
+			return;
+		}
+		startQueue(i);                     // 点别处才把"浏览的列表"变成"播放队列"
+	};
+	bindLongPress(row, () => openSongSheet(s));
+	return row;
+}
+
+// 头部高度要参与虚拟窗口计算，否则滚动位置会整体偏掉一个头部的高度
+function headOffset() {
+	const box = $('plhead');
+	return (box && !box.hidden) ? box.offsetHeight : 0;
+}
+
+function renderHead() {
+	const box = $('plhead');
+	if (!viewHead) { box.hidden = true; box.textContent = ''; return; }
+	box.hidden = false;
+	box.textContent = '';
+	const img = document.createElement('img');
+	img.className = 'ph-cover';
+	img.alt = '';
+	if (viewHead.cover) img.src = viewHead.cover; else img.hidden = true;
+	const txt = document.createElement('div');
+	txt.className = 'ph-txt';
+	const name = document.createElement('div');
+	name.className = 'ph-name';
+	name.textContent = viewHead.name || '';
+	const meta = document.createElement('div');
+	meta.className = 'ph-meta';
+	meta.textContent = [viewHead.creator, (viewHead.count || 0) + ' 首']
+		.filter(Boolean).join(' · ');
+	txt.append(name, meta);
+	if (viewHead.desc) {
+		const desc = document.createElement('div');
+		desc.className = 'ph-desc';
+		desc.textContent = viewHead.desc;
+		txt.append(desc);
+	}
+	box.append(img, txt);
+}
+
+function renderWindow(top, force) {
+	// 减去头部高度：滚动位置是相对整个文档的，而窗口是按行算的
+	top = Math.max(0, (top || 0) - headOffset());
+	const total = viewSongs.length;
+	const rowsBox = $('sp-rows');
+	if (!rowsBox || !total) return;
+	const H = rowH || 60;
+	// 按 25 行一页对齐：滚一行不会重建，滚过一页才换，闪的机会少一个数量级
+	const first = Math.floor(top / H);
+	// 上界夹住：行高测偏时 from 会超过 total，占位高度会一路涨、滚动位置跟着漂
+	const from = Math.min(Math.max(0, Math.floor(first / PAGE) * PAGE - OVER),
+		Math.max(0, total - 1));
+	const to = Math.min(total, from + WIN + OVER * 2);
+	if (!force && from === winFrom && to === winTo) return;
+
+	// 认"真正在放的那首"（curId），不认 songs[index]：离开页面再回来时
+	// 队列可能已被后端换掉，songs[index] 就不是正在放的了，强调色会丢。
+	const playing = curId ? { id: curId } : null;
+	winFrom = from; winTo = to;
+	const frag = document.createDocumentFragment();
+	for (let i = from; i < to; i++) frag.appendChild(rowFor(viewSongs[i], i, playing));
+	// replaceChildren 一次性换掉，中间没有"空列表"那一帧
+	if (rowsBox.replaceChildren) rowsBox.replaceChildren(frag);
+	else { rowsBox.innerHTML = ''; rowsBox.appendChild(frag); }
+	$('sp-top').style.height = (from * H) + 'px';
+	$('sp-bot').style.height = ((total - to) * H) + 'px';
+}
+
+function renderSongs() {
+	showListAnim();
+	// 歌手页换成带封面的卡片样式，其它列表（歌单/搜索/每日推荐）保持紧凑行
+	cardMode = !!(viewSrc && viewSrc.kind === 'artist');
+	// 刚进加载态就来了数据：压一会儿，保证"加载中"能被看见（也避免闪一下）
+	if (loadingAt && Date.now() - loadingAt < MIN_LOAD_MS) {
+		if (renderSongs.timer) clearTimeout(renderSongs.timer);
+		renderSongs.timer = setTimeout(() => {
+			renderSongs.timer = 0;
+			loadingAt = 0;
+			renderSongs();
+		}, MIN_LOAD_MS - (Date.now() - loadingAt));
+		return;
+	}
+	loadingAt = 0;
+	winFrom = -1; winTo = -1; rowH = 0;
+	renderHead();
+	if (!viewSongs.length) {
+		$('list').innerHTML = '<div id="empty">这里是空的</div>';
+		paintHint();
+		return;
+	}
+	$('list').innerHTML = '<div id="sp-top"></div><div id="sp-rows"></div><div id="sp-bot"></div>';
+	const top = document.documentElement.scrollTop || window.scrollY || 0;
+	renderWindow(top, true);
+	// 量一下真实行高（含 margin），后面按它算窗口
+	const first = $('sp-rows').firstElementChild;
+	if (first) {
+		const cs = getComputedStyle(first);
+		rowH = first.getBoundingClientRect().height + (parseFloat(cs.marginBottom) || 0);
+		renderWindow(top, true);
+	}
+	paintHint();
+	if (!$('queue').hidden) renderQueue();
+}
+
+function collectionRow(item, kind, tag) {
+	const row = document.createElement('div');
+	row.className = 'coll';
+	row.innerHTML = '<div class="cover"></div><div class="txt">' +
+		'<div class="t1"></div><div class="t2"></div></div>' +
+		(tag ? '<div class="tag">' + tag + '</div>' : '');
+	row.querySelector('.t1').textContent = item.name;
+	// 副标题：歌单用「N 首 · 创建者」，收藏页的专辑/歌手/播客没有 count/creator，
+	// 它们的第二个字段叫 sub（歌手名 / "N 张专辑" / 主播名），这里统一兜一下，
+	// 否则收藏页的卡片下面全是空的。
+	const bits = [];
+	if (item.count) bits.push(item.count + ' 首');
+	if (item.creator) bits.push(item.creator);
+	else if (item.sub) bits.push(item.sub);
+	row.querySelector('.t2').textContent = bits.join(' · ');
+	if (item.cover) row.querySelector('.cover').style.backgroundImage = 'url("' + item.cover + '")';
+	row.dataset.collId = item.id;          // 返回时按它把入口滚回视野
+	row.onclick = () => {
+		if (kind === 'album') { openAlbum(item.id); return; }
+		if (kind === 'artist') { openArtistPage({ id: item.id, name: item.name }); return; }
+		openCollection(item, kind);
+	};
+	return row;
+}
+
+// 收藏页：专辑/歌手/播客三段切换，只渲染当前那段
+let favData = { album: [], artist: [], podcast: [] }, favKind = 'album';
+
+function renderFav() {
+	const items = favData[favKind] || [];
+	document.querySelectorAll('[data-fav]').forEach((b) =>
+		b.classList.toggle('on', b.dataset.fav === favKind));
+	const label = favKind === 'album' ? '专辑' : favKind === 'artist' ? '歌手' : '播客';
+	renderCollections([{ title: '', items: items, kind: favKind, tag: '' }]);
+	setHint('我的收藏 · ' + label + ' ' + items.length);
+}
+
+$('favseg').addEventListener('click', (e) => {
+	const b = e.target.closest('[data-fav]');
+	if (!b || b.dataset.fav === favKind) return;
+	favKind = b.dataset.fav;
+	renderFav();
+});
+
+function renderCollections(sections) {
+	showListAnim();
+	// 存一份：从卡片页点进详情后返回，直接用它同步重建，不用再联网加载
+	collSnapshot = { tab: curTab, sections: sections };
+	$('list').innerHTML = '';
+	let any = false;
+	sections.forEach((sec) => {
+		if (!sec.items || !sec.items.length) return;
+		any = true;
+		if (sec.title) {
+			const h = document.createElement('div');
+			h.className = 'section';
+			h.textContent = sec.title;
+			$('list').appendChild(h);
+		}
+		sec.items.forEach((it) => $('list').appendChild(collectionRow(it, sec.kind, sec.tag)));
+	});
+	if (!any) $('list').innerHTML = '<div id="empty">这里是空的</div>';
+	paintHint();
+}
+
+/* ---------- 数据 ---------- */
+
+function needLogin() {
+	setErr('需要先登录');
+	listMsg('需要登录', false);
+	openLogin();
+}
+
+// 浏览类请求的序号：快速连续切页时，只认最后一次的结果，旧响应直接丢掉
+let viewSeq = 0;
+
+async function loadTab(tab, btn) {
+	if (tab.id !== 'daily' && !me) { needLogin(); return; }
+	const seq = ++viewSeq;
+	busy = true;
+	setErr('');
+	curTab = tab.id;                 // 记住当前分类：重进应用靠它高亮 tab
+	$('favseg').hidden = tab.id !== 'fav';   // 三段切换只在收藏页出现
+	document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === btn));
+	centerTab(btn);
+	viewSongs = [];
+	viewSrc = null;
+	viewHead = null;
+	artistMore = 0;
+	renderHead();
+	listMsg('加载中…', true);
+	backState = null;
+	$('back').hidden = true;
+	$('tabs').hidden = false;
+	$('account').hidden = false;
+	setHint('加载中…');
+
+	try {
+		if (tab.id === 'daily') {
+			const d = await e5.api('/daily');
+			if (seq !== viewSeq) return;
+			if (d && d.need_login) return needLogin();
+			viewSongs = (d && d.songs) || [];
+			viewSrc = { kind: 'daily' };
+			renderSongs();
+			// 失败和"真的没有"要分开说，不然用户只看到 0 首，不知道是网络问题
+			if (!d || !d.ok) setErr((d && d.error) || '每日推荐加载失败，稍后再试');
+			else setErr('');
+			setHint('每日推荐 · ' + viewSongs.length + ' 首');
+		} else if (tab.id === 'liked') {
+			// 一批 50 首：一次拉全（853 首）会让封面下载把页面卡住，
+			// 滚到底再要下一页。
+			const d = await e5.api('/liked?uid=' + (me ? me.uid : 0) + '&offset=0&limit=50');
+			if (seq !== viewSeq) return;
+			if (d && d.need_login) return needLogin();
+			viewSongs = (d && d.songs) || [];
+			viewSrc = { kind: 'liked' };
+			// 不设这两个的话，滑到底不会继续加载（artistMore 还留着上个列表的值）
+			artistMore = (d && d.more) ? 1 : 0;
+			artistTotal = (d && d.total) || viewSongs.length;
+			renderSongs();
+			setErr(d && d.ok ? '' : ((d && d.error) || '我喜欢的加载失败，稍后再试'));
+			setHint('我喜欢的音乐' + (artistTotal
+				? ' · ' + viewSongs.length + ' / ' + artistTotal + ' 首' : ''));
+		} else if (tab.id === 'reco') {
+			const d = await e5.api('/reco');
+			if (seq !== viewSeq) return;
+			if (d && d.need_login) return needLogin();
+			renderCollections([{ title: '', items: (d && d.lists) || [], kind: 'playlist', tag: '' }]);
+			setErr(d && d.ok ? '' : ((d && d.error) || '推荐歌单加载失败，稍后再试'));
+			setHint('为你私人定制');
+		} else if (tab.id === 'mylists') {
+			const d = await e5.api('/mylists?uid=' + (me ? me.uid : 0));
+			if (seq !== viewSeq) return;
+			if (d && d.need_login) return needLogin();
+			const made = (d && d.made) || [], saved = (d && d.saved) || [];
+			renderCollections([
+				{ title: '我创建的', items: made, kind: 'playlist', tag: '' },
+				{ title: '我收藏的', items: saved, kind: 'playlist', tag: '收藏' }
+			]);
+			setErr(d && d.ok ? '' : ((d && d.error) || '歌单加载失败，稍后再试'));
+			setHint('歌单 ' + (made.length + saved.length) + ' 个');
+		} else if (tab.id === 'fav') {
+			const d = await e5.api('/subs');
+			if (seq !== viewSeq) return;
+			if (d && d.need_login) return needLogin();
+			favData = {
+				album: (d && d.albums) || [],
+				artist: (d && d.artists) || [],
+				podcast: (d && d.podcasts) || []
+			};
+			$('favseg').hidden = false;
+			setErr(d && d.ok ? '' : ((d && d.error) || '收藏加载失败，稍后再试'));
+			renderFav();
+		} else if (tab.id === 'podcasts') {
+			const d = await e5.api('/podcasts');
+			if (seq !== viewSeq) return;
+			if (d && d.need_login) return needLogin();
+			renderCollections([{ title: '', items: (d && d.lists) || [], kind: 'podcast', tag: '' }]);
+			setErr(d && d.ok ? '' : ((d && d.error) || '播客加载失败，稍后再试'));
+			setHint('收藏的播客');
+		}
+	} catch (e) {
+		if (seq !== viewSeq) return;          // 已经被新的切页顶掉，别报错
+		setHint('加载失败');
+		setErr('加载失败：' + (e && e.message ? e.message : e));
+		listMsg('加载失败', false);
+	} finally {
+		if (seq === viewSeq) busy = false;
+	}
+	if (seq !== viewSeq) return;
+	// 只是浏览，不动播放队列，也不改续播计划
+	paintNav();
+}
+
+// 专辑页：和歌单一样是子页，只是数据源不同（/album 一次给完）
+async function openAlbum(id, fromArtist) {
+	const seq = ++viewSeq;
+	busy = true;
+	setErr('');
+	// fromArtist：从歌手页的专辑网格点进来的。返回时要回到那位歌手
+	// （并且停在专辑 tab），而不是掉回首页的分类列表。
+	collBack = fromArtist
+		? { artist: { id: aPageId, name: aPageName } }
+		: (COLL_TABS.has(curTab) ? { tab: curTab, id: 0 } : null);
+	viewHead = null;
+	viewSrc = { kind: 'album', sid: id };
+	listName = '';
+	artistMore = 0;
+	artistTotal = 0;
+	window.scrollTo(0, 0);
+	renderHead();
+	paintNav();
+	setHint('专辑 · 加载中…');
+	listMsg('加载中…', true);
+	try {
+		const d = await e5.api('/album?id=' + id);
+		if (seq !== viewSeq) return;
+		if (!d || !d.ok) throw new Error((d && d.error) || '加载失败');
+		viewSongs = d.songs || [];
+		setSubTarget('album', id);
+		artistTotal = d.total || viewSongs.length;
+		viewHead = {
+			name: d.name || '',
+			cover: d.cover || '',
+			desc: d.desc || '',
+			creator: d.creator || '',
+			count: d.count || viewSongs.length
+		};
+		listName = d.name || '';
+		index = -1;
+		renderSongs();
+		setHint((d.name || '专辑') + ' · ' + viewSongs.length + ' 首');
+		paintNav();
+	} catch (e) {
+		if (seq !== viewSeq) return;
+		setErr('加载失败：' + (e && e.message ? e.message : e));
+		setHint('加载失败');
+		listMsg('加载失败', false);
+	} finally {
+		if (seq === viewSeq) busy = false;
+	}
+}
+
+async function openCollection(item, kind) {
+	const seq = ++viewSeq;
+	busy = true;
+	setErr('');
+	// 点下去就切到歌单页，别让人先盯着首页的"加载中"：
+	// 先把子页的骨架摆好（藏分类、显返回、清掉上一页的头部和行），
+	// 封面和简介等数据回来再填。
+	// 记下来源：从"歌单/私人/播客"这些卡片页点进来的，返回要回到那一页，
+	// 并且停在刚才点的那个入口上，而不是跳回每日推荐。
+	collBack = (COLL_TABS.has(curTab))
+		? { tab: curTab, id: item.id }
+		: null;
+	setSubTarget(kind === 'podcast' ? 'podcast' : 'playlist', item.id);
+	viewHead = null;
+	viewSrc = kind === 'podcast'
+		? { kind: 'programs', sid: item.id }
+		: { kind: 'playlist', sid: item.id };
+	listName = item.name || '';
+	artistMore = 0;
+	artistTotal = 0;
+	window.scrollTo(0, 0);
+	renderHead();
+	paintNav();
+	setHint(item.name || '加载中…');
+	listMsg('加载中…', true);
+	try {
+		const url = kind === 'podcast' ? ('/programs?id=' + item.id) : ('/playlist?id=' + item.id);
+		const d = await e5.api(url);
+		if (seq !== viewSeq) return;
+		if (!d || !d.ok) throw new Error((d && d.error) || '加载失败');
+		viewSongs = d.songs || [];
+		// 歌单是分页的：先给一页，滚到底再要下一页。artistMore 复用成"还有更多"开关。
+		viewSrc = kind === 'podcast'
+			? { kind: 'programs', sid: item.id }
+			: { kind: 'playlist', sid: item.id };
+		listName = item.name || '';
+		artistMore = (kind === 'podcast') ? 0 : (d.more ? 1 : 0);
+		artistTotal = (kind === 'podcast') ? 0 : (d.total || 0);
+		// 详情页头部：封面、简介、作者、条数。播客和歌单用同一套。
+		viewHead = {
+			name: d.name || item.name || '',
+			cover: d.cover || item.cover || '',
+			desc: d.desc || '',
+			creator: d.creator || '',
+			count: d.count || d.total || viewSongs.length
+		};
+		index = -1;
+		window.scrollTo(0, 0);
+		renderSongs();
+		setHint((item.name || '') + ' · ' + (artistTotal > viewSongs.length
+			? viewSongs.length + ' / ' + artistTotal
+			: viewSongs.length) + (kind === 'podcast' ? ' 集' : ' 首'));
+		paintNav();
+	} catch (e) {
+		if (seq !== viewSeq) return;
+		setErr('加载失败：' + (e && e.message ? e.message : e));
+		setHint('加载失败');
+		listMsg('加载失败', false);
+	} finally {
+		if (seq === viewSeq) busy = false;
+	}
+}
+
+/* ---------- 进度 ---------- */
+
+function renderProgress() {
+	const dur = curDuration;
+	const ratio = dur ? Math.min(1, posMs / dur) : 0;
+	const ring = $('ring-bar');
+	if (ring) ring.style.strokeDashoffset = (128.8 * (1 - ratio)).toFixed(1);
+	if (!$('now').hidden) { syncNow(); paintLyrics(); }
+}
+
+// 播完自动下一首是**后端**做的：页面一息屏就被关掉，前端计时器根本活不到那时候。
+// 前端只做两件事：本地平滑走进度、每 2 秒跟 /status 对一次账（换歌了就把界面换过来）。
+let pollTick = 0, stoppedSeen = 0;
+
+function tick() {
+	if (++pollTick >= 4) { pollTick = 0; pollStatus(); }
+	if (!playing || paused) { lastTick = Date.now(); return; }
+	posMs += Date.now() - lastTick;
+	lastTick = Date.now();
+	renderProgress();
+}
+
+// 后端已经换了一首（自动续播/别处点的），把界面接过去
+function adoptSong(d) {
+	curId = d.id;
+	curDuration = d.duration || 0;
+	// 自动续播换歌时走不到 playAt，试听状态只能从 status 里拿。
+	// 不更新这里，白点会一直留在进度条上（切到普通歌也不消失）。
+	trialLimitSec = d.trial ? (Number(d.trialSec) || 30) : 0;
+	paintTrialDot();
+	posMs = (d.elapsed || 0) * 1000;
+	lastTick = Date.now();
+	playing = true;
+	paused = !!d.paused;
+	$('n-title').textContent = d.name || '';
+	// 状态文件里的 artist 可能为空（老队列/接口没给 ar），用队列里那份兜一下，
+	// 否则沉浸页只剩歌名没有歌手
+	const qi = songs.findIndex((x) => String(x.id) === String(d.id));
+	$('n-sub').textContent = d.artist || (qi >= 0 ? (songs[qi].artist || '') : '');
+	curCover = d.cover || '';
+	$('cover').style.backgroundImage = curCover ? 'url("' + curCover + '")' : '';
+	let i = songs.findIndex((x) => String(x.id) === String(d.id));
+	// 电台是"流"：歌是后端从池子里取的，本地队列经常没有这一首。
+	// 找不到就补进队列，否则 index=-1 会让上一首/下一首、进度、底栏全乱。
+	if (i < 0 && listSrc && (listSrc.kind === 'fm' || listSrc.kind === 'radio')) {
+		songs.push({
+			id: d.id, name: d.name || '', artist: d.artist || '', album: '',
+			duration: d.duration || 0, fee: 0, hires: 0, cov: d.cover || ''
+		});
+		if (songs.length > 300) songs.splice(0, songs.length - 200);
+		i = songs.length - 1;
+		saveQueue(curTab, listHint);
+	}
+	index = i;                 // 找不到还是 -1（这首不在队列里，且不是电台）
+	if (i >= 0) { saveIndex(); prefetchCovers(i); }
+	markPlaying();
+	curArtists = d.artists || [];
+	curPid = d.pid || 0;
+	if (curPid > 0) $('now').classList.remove('lyrics-mode');   // 播客没有歌词页
+	likedFor = 0;
+	paintLike();          // 播客时把喜欢按钮收起来（refreshLike 对播客会直接返回）
+	refreshLike();
+	refreshLyrics();
+	setToggleIcon(!paused);
+	renderProgress();
+	syncNow();
+}
+
+async function pollStatus() {
+	let d = null;
+	try { d = await e5.api('/status'); } catch (e) { return; }
+	if (!d || !d.ok) return;
+
+	if (!d.active) {
+		// 正在切歌（/play 还没回来）时空档是正常的，别当成"停了"把界面清掉
+		if (switching) { stoppedSeen = 0; return; }
+		// 后端切歌的空档里有一两秒没有 pacat，连着两轮才算真停
+		if (++stoppedSeen < 2) return;
+		stoppedSeen = 0;
+		if (playing) { playing = false; paused = false; setToggleIcon(false); }
+		return;
+	}
+	stoppedSeen = 0;
+
+	if (String(d.id) !== String(curId)) { adoptSong(d); return; }
+	// 同一首歌内封面变了也要跟上：后端会按真实格式把 xxx.jpg 改名成 xxx.png，
+	// 页面手里那份旧地址就成了 404（表现是封面一直空白，直到换歌才恢复）。
+	if (d.cover && d.cover !== curCover) {
+		curCover = d.cover;
+		$('cover').style.backgroundImage = 'url("' + curCover + '")';
+		paintCover(curCover);
+	}
+	if (d.artists && d.artists.length && d.artists.length !== curArtists.length) curArtists = d.artists;
+	// 播客标记也每次对账：页面可能是从没有 pid 的旧队列恢复的，红心得跟着收起来
+	if ((d.pid || 0) !== curPid) { curPid = d.pid || 0; likedFor = 0; paintLike(); }
+	if (!!d.paused !== paused) { paused = !!d.paused; setToggleIcon(!paused); lastTick = Date.now(); }
+	// 本地计时会漂，超过 1.5 秒才拉回来，免得进度条来回跳
+	if (!dragging && Math.abs(posMs - (d.elapsed || 0) * 1000) > 1500) {
+		posMs = (d.elapsed || 0) * 1000;
+		lastTick = Date.now();
+	}
+	if (d.duration) curDuration = d.duration;
+	renderProgress();
+}
+
+function startTimer() {
+	if (timer) clearInterval(timer);
+	lastTick = Date.now();
+	timer = setInterval(tick, 500);
+}
+
+/* ---------- 播放 ---------- */
+
+// 点列表里的一首：把这会儿看的列表整体变成播放队列，再从这一首开始放
+function startQueue(i) {
+	if (!viewSongs.length) return;
+	songs = viewSongs.slice();
+	listSrc = viewSrc;
+	index = i;
+	saveQueue(curTab, listHint);
+	syncPlan();
+	playAt(i, 0, true);      // manual：用户自己点的，不跳过
+}
+
+// 队列里这首歌没有歌手（ar 为空或旧数据）：单独取一次详情补上，
+// 补完同时更新底栏和沉浸页，并写回队列。
+async function fillArtist(s) {
+	try {
+		const d = await e5.api('/detail?id=' + s.id);
+		if (!d || !d.ok || !d.artist) return;
+		s.artist = d.artist;
+		saveQueue(curTab, listHint);
+		if (String(curId) === String(s.id)) {
+			$('n-sub').textContent = s.artist;
+			$('now-sub').textContent = s.artist;
+		}
+	} catch (e) { /* 补不上就算了，别打扰播放 */ }
+}
+
+async function playAt(i, hop, manual) {
+	if (i < 0 || i >= songs.length) return;
+	const s = songs[i];
+	if (!s.artist) fillArtist(s);
+	// 这里**不再跳过 VIP 歌**。
+	// 以前非会员撞上会员歌会静默跳下一首，结果是：连着几首 VIP 歌时焦点在列表里
+	// 来回弹，上一首/下一首也乱（跳过的次数和用户按下次数对不上）。
+	// 现在服务端允许试听，就直接放 —— 放不了会自动结束，界面上有白点标出到哪儿。
+	// songBlocked() 只留着给列表做视觉压暗，不再参与播放决策。
+	const token = ++playToken;
+	if (index >= 0 && index !== i) { hist.push(index); if (hist.length > 60) hist.shift(); }
+	index = i;
+	saveIndex();
+	markPlaying();
+	$('n-title').textContent = s.name;
+	$('n-sub').textContent = s.artist + ' · 加载中…';
+	fadeNow();
+	$('cover').style.backgroundImage = '';
+	curDuration = s.duration || 0;
+	// 关键：计时器立刻归零。切歌要等后端下载/起进程，这期间 tick 还在跑，
+	// posMs 留着上一首的末尾就会一直被判定"放完了"，于是一首接一首往下跳。
+	posMs = 0;
+	lastTick = Date.now();
+	setErr('');
+	switching = true;
+	// 立刻把上一首停掉，别让它在"新歌下载中"这段时间继续响。
+	// 必须 await：/stop 和后面的 /play 都是改后端播放状态的，
+	// 并发的话 /stop 有可能晚到，把刚起的新歌给杀了（表现是没声音）。
+	// 它只是 kill 进程，很快，等这一下不影响手感。
+	if (playing || paused) { try { await e5.api('/stop'); } catch (e) { } }
+	playing = false;
+	paused = false;
+	setToggleIcon(false);
+	setCoverLoading(true);
+
+	try {
+		// 播客节目带上电台封面，mainSong 的专辑图是通用占位图
+		// self = 页面自己的 origin（宿主端口可能不是 8088），后端用它拼续播回调地址
+		const self = encodeURIComponent(location.origin);
+		const d = await e5.api('/play?id=' + s.id +
+			'&self=' + self +
+			(s.cov ? '&cov=' + encodeURIComponent(s.cov) : '') +
+			(s.pid ? '&pid=' + s.pid : '') +
+			'&name=' + encodeURIComponent(s.name || '') +
+			'&artist=' + encodeURIComponent(s.artist || '') +
+			'&dur=' + (s.duration || 0));
+		if (token !== playToken) return;   // 期间又点了别的歌，这次的结果作废
+		if (!d || !d.ok) throw new Error((d && d.error) || '播放失败');
+		setCoverLoading(false);
+		// 后端说这次拿到的只是试听片段：照样放，但得让人知道为什么只有一小段
+		// 试听片段的真实长度（后端解码出来的，通常 30~45 秒）。
+		// 进度条拖不过它，同时在那个位置画个白点。
+		trialLimitSec = d.trial ? (Number(d.trialSec) || 30) : 0;
+		paintTrialDot();
+		if (d.trial) toast('这首歌完整播放需要会员，当前只能试听');
+		$('n-sub').textContent = s.artist;
+		curId = s.id;
+		// 高亮必须等 curId 更新之后再刷一次。
+		// playAt 开头那次 markPlaying() 用的是**上一首**的 curId
+		// （那时还没请求 /play），所以列表里的强调色会慢一拍，
+		// 看起来就是"焦点差一首"。
+		markPlaying();
+		// 换歌了：红心状态、歌手列表都要重新取（歌手等 pollStatus 补）
+		curArtists = [];
+		curPid = s.pid || 0;
+		likedState = 0;
+		likedFor = 0;
+		paintLike();
+		refreshLike();
+		pollStatus();
+		refreshLyrics();
+		playing = true; paused = false; posMs = 0;
+		setToggleIcon(true);
+		startTimer();
+		renderProgress();
+		// 心动模式：每播 3 首，往下一首的位置插一首推荐
+		if (listSrc && listSrc.kind === 'radio') {
+			radioN++;
+			if (radioN % 4 === 3) radioInject();
+		}
+		// 封面是后端下到本地再给的（web 进程没有 TLS，https 封面加载不出来）
+		curCover = d.cover || '';
+		$('cover').style.backgroundImage = curCover ? 'url("' + curCover + '")' : '';
+		syncNow();
+		prefetchCovers(i);
+	} catch (e) {
+		if (token !== playToken) return;
+		playing = false; paused = false;
+		setToggleIcon(false);
+		console.log('[netease] play failed id=' + s.id + ' fee=' + s.fee +
+			' vip=' + isVip() + ' name=' + s.name + ' msg=' + (e && e.message));
+		// 播放失败用气泡提醒：列表上那行小字容易被忽略，
+		// 尤其是"需要会员"这种要用户立刻知道的情况。
+		setCoverLoading(false);
+		const msg = (e && e.message) ? e.message : String(e);
+		setErr('');
+		toast(msg);
+	} finally {
+		if (token === playToken) switching = false;
+	}
+}
+
+async function toggle() {
+	if (!playing) { if (songs.length) playAt(index >= 0 ? index : 0); return; }
+	try {
+		if (paused) {
+			await e5.api('/resume');
+			paused = false; lastTick = Date.now();
+			setToggleIcon(true);
+		} else {
+			await e5.api('/pause');
+			paused = true;
+			setToggleIcon(false);
+		}
+	} catch (e) { setErr('操作失败：' + (e && e.message ? e.message : e)); }
+}
+
+/* ---------- 播放顺序 ---------- */
+
+function nextIndex(from) {
+	if (!songs.length) return -1;
+	const cur = (from === undefined) ? index : from;
+	if (playMode === 'shuffle') {
+		if (songs.length === 1) return 0;
+		let n = cur;
+		while (n === cur) n = Math.floor(Math.random() * songs.length);
+		return n;
+	}
+	return (cur + 1) % songs.length;
+}
+
+function prevIndex(from) {
+	if (!songs.length) return -1;
+	const cur = (from === undefined) ? index : from;
+	if (playMode === 'shuffle') {
+		const p = hist.pop();
+		if (p != null && p !== cur && p >= 0 && p < songs.length) return p;
+		return nextIndex(cur);
+	}
+	return cur <= 0 ? songs.length - 1 : cur - 1;
+}
+
+function step(delta) {
+	// 电台是流：本地那十几首只是起步，切歌要从后端池子里拿新的，
+	// 在本地队列里循环会一直在同样几首里打转。
+	// 电台/心动模式是"流"：**下一首**要从后端要新歌，本地队列里没有。
+	// 但**上一首**得走本地 —— 播过的歌都被 adoptSong 补进队列了，回退是能回去的。
+	// 之前不分方向一律 /next，结果"上一首"也在换新歌，回不到刚听的那首。
+	// 电台/心动模式是"流"，但要区分两种情况：
+	//   · 你已经退回到前面某首了 → 下一首应该走队列里那首（原路回去），
+	//     不然"上一首、下一首"回不到刚才听的那首，等于每次都在推新歌
+	//   · 已经在队尾（最新前沿）→ 才去后端要新歌
+	// 只有私人FM 是"纯流"（队列十来首，切歌要问后端）。
+	// 心动模式的队列由前端管（收藏打乱 + 定时插推荐），直接走本地，
+	// 再走 /next 的话后端会另推一首，和队列对不上。
+	if (delta > 0 && listSrc && listSrc.kind === 'fm') {
+		e5.api('/next').then((d) => {
+			if (d && d.ok) pollStatus();
+		}).catch(() => {});
+		return;
+	}
+	if (!songs.length) return;
+	const n = delta > 0 ? nextIndex() : prevIndex();
+	if (n >= 0) playAt(n);
+}
+
+function cycleMode() {
+	const i = MODES.findIndex((m) => m.id === playMode);
+	const next = MODES[(i + 1) % MODES.length].id;
+	// 切到心动模式：它不是"播放顺序"而是换来源，得把种子告诉后端
+	if (next === 'radio') { enterRadio(); return; }
+	// 从心动模式切走：先把来源还原
+	if (playMode === 'radio') leaveRadio();
+	playMode = next;
+	hist = [];
+	try { localStorage.setItem(MODE_KEY, playMode); } catch (e) { /* ignore */ }
+	paintMode();
+	syncPlan();
+}
+
+function enterRadio() {
+	const seed = curId || (songs[index] && songs[index].id) || 0;
+		if (!seed) { toast('先播一首歌再进入心动模式'); return; }
+		playMode = 'radio';
+		hist = [];
+		try { localStorage.setItem(MODE_KEY, playMode); } catch (e) { /* ignore */ }
+		// 来源换成 radio：切歌和"新歌补进队列"都靠这个标记走后端，
+		// 原来那份先存起来，切走模式时还原。
+		if (listSrc && listSrc.kind !== 'radio') setSrcBeforeRadio(listSrc);
+		listSrc = { kind: 'radio', sid: seed };
+
+		// 队列**保留**（官方是"在收藏里随机播"，不是清空），只打乱顺序。
+		// 打乱后把当前这首挪到最前面，避免一听就跳走。
+		const keep = songs.find(function (x) { return String(x.id) === String(seed); });
+		const rest = songs.filter(function (x) { return String(x.id) !== String(seed); });
+		for (let i = rest.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			const t = rest[i]; rest[i] = rest[j]; rest[j] = t;
+		}
+		songs = keep ? [ keep ].concat(rest) : rest;
+		index = 0;
+		radioN = 0;
+		saveQueue(curTab, listHint);
+		paintMode();
+		toast('正在进入心动模式…');
+		e5.api('/plan?kind=radio&sid=' + encodeURIComponent(seed)).then((d) => {
+			if (d && d.ok) toast('心动模式');
+			else toast('进入心动模式失败');
+	}).catch(() => toast('进入心动模式失败'));
+}
+
+// 只负责"把来源还原"，不碰 playMode —— 由 cycleMode 决定下一档是什么
+function leaveRadio() {
+	if (listSrc && listSrc.kind === 'radio') listSrc = srcBeforeRadio || listSrc;
+	setSrcBeforeRadio(null);
+	hist = [];
+	// 必须落盘：不存的话 localStorage 里还留着 {kind:'radio'}，
+	// 重进时 mode 是 loop 但来源是 radio，两边对不上
+	saveQueue(curTab, listHint);
+}
+
+const MODE_ICONS = {
+	// 循环：两条弧形箭头
+	loop: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 3v4h-4M6 21v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+	// 单曲循环：循环 + 中间的 1
+	one: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 3v4h-4M6 21v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 9.5l1.5-1v7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+	// 随机：交叉箭头
+	shuffle: '<svg viewBox="0 0 24 24"><path d="M4 6h4l10 12h2M4 18h4L18 6h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 3l3 3-3 3M18 15l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+	// 心动模式：心形 + 声波
+	radio: '<svg viewBox="0 0 24 24"><path d="M12 20.3l-1.35-1.24C5.4 14.3 2 11.2 2 7.9 2 5.2 4.2 3.05 6.9 3.05c1.55 0 3.05.72 4.1 1.87a5.5 5.5 0 0 1 4.1-1.87C17.8 3.05 20 5.2 20 7.9c0 3.3-3.4 6.4-8.65 11.16L12 20.3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4.6 11h2.8l1.7-3.2 2.6 6.2 1.8-3h3.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+	// 顺序：向下箭头
+	order: '<svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h10M4 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 6v11m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+function paintMode() {
+	const inRadio = playMode === 'radio';
+	// 来自"我喜欢的"才给心动入口：种子得是你自己收藏的歌才有意义，
+	// 从歌单/搜索点进来的，这个按钮不该出现。
+	const fromLiked = !!(listSrc && listSrc.kind === 'liked');
+
+	const b = $('now-mode');
+	if (b) {
+		b.innerHTML = MODE_ICONS[playMode] || MODE_ICONS.loop;
+		b.hidden = false;
+	}
+
+	// 心动模式是流，播放列表没有浏览的意义
+	const q = $('now-queue');
+	if (q) q.hidden = inRadio;
+}
+
+/* ---------- 播放列表 ---------- */
+
+// 队列也改成虚拟滚动：歌单修好后队列动辄上千首，一次性建上千个 DOM 节点会把
+// WPE 的 web 进程撑爆（表现就是滑到底部闪退）。和主列表一样只渲染窗口内的几十行。
+const QWIN = 40, QOVER = 6, QPAGE = 20;
+let qFrom = -1, qTo = -1, qRowH = 0, qRaf = 0;
+
+function qRowFor(s, i) {
+	const row = document.createElement('div');
+	row.className = 'qrow' + (i === index ? ' cur' : '');
+	row.innerHTML = '<div class="qi"></div><div class="qn2">' +
+		'<div class="q1"></div><div class="q2"></div></div>';
+	row.querySelector('.qi').textContent = i + 1;
+	row.querySelector('.q1').textContent = s.name;
+	row.querySelector('.q2').textContent = s.artist + (s.album ? ' · ' + s.album : '');
+	const del = document.createElement('button');
+	del.className = 'q-del';
+	del.setAttribute('aria-label', '从列表移除');
+	del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+	del.onclick = (e) => { e.stopPropagation(); queueRemove(i); };
+	row.appendChild(del);
+	row.onclick = () => {
+		if (longPressAteClick()) return;
+		playAt(i); closeQueue();
+	};
+	bindLongPress(row, () => openSongSheet(s));
+	return row;
+}
+
+function renderQueueWindow(force) {
+	const total = songs.length;
+	const box = $('q-rows');
+	if (!box || !total) return;
+	const H = qRowH || 60;
+	const list = $('qlist');
+	const top = list ? (list.scrollTop || 0) : 0;
+	const first = Math.floor(top / H);
+	// 上界夹住：行高测偏时 from 会算出超过 total，占位高度会一路涨、滚动位置跟着漂
+	const from = Math.min(Math.max(0, Math.floor(first / QPAGE) * QPAGE - QOVER),
+		Math.max(0, total - 1));
+	const to = Math.min(total, from + QWIN + QOVER * 2);
+	if (!force && from === qFrom && to === qTo) return;
+	qFrom = from; qTo = to;
+	const frag = document.createDocumentFragment();
+	for (let i = from; i < to; i++) frag.appendChild(qRowFor(songs[i], i));
+	if (box.replaceChildren) box.replaceChildren(frag);
+	else { box.innerHTML = ''; box.appendChild(frag); }
+	$('q-top').style.height = (from * H) + 'px';
+	$('q-bot').style.height = ((total - to) * H) + 'px';
+}
+
+// 从播放列表里删掉第 i 首。删的正是正在放的那首时，接着放下一首。
+function queueRemove(i) {
+	if (i < 0 || i >= songs.length) return;
+	if (listSrc && listSrc.kind === 'fm') { setErr('电台的列表不能单独删，用"不喜欢"'); return; }
+	const id = String(songs[i].id);
+	const wasCurrent = String(curId) === id;
+	songs.splice(i, 1);
+	if (i < index) index--;
+	if (wasCurrent) {
+		if (!songs.length) { index = -1; stopAndReset(); return; }
+		if (index >= songs.length) index = songs.length - 1;
+		playAt(index);
+	} else if (index >= songs.length) {
+		index = songs.length - 1;
+	}
+	saveQueue(curTab, listHint);
+	renderQueue();
+}
+
+// 列表空了：界面复位 + 让后端停掉（别留个在放但列表是空的怪状态）
+function stopAndReset() {
+	saveQueue(curTab, listHint);
+	renderQueue();
+	playing = false; paused = false;
+	setToggleIcon(false);
+	curId = 0; posMs = 0; curDuration = 0;
+	$('n-title').textContent = '';
+	$('n-sub').textContent = '选一首歌';
+	$('cover').style.backgroundImage = '';
+	syncNow();
+	e5.api('/stop').catch(() => { /* 停不掉也无所谓，进程自己会退出 */ });
+}
+
+function queueClear() {
+	if (!songs.length) return;
+	songs = [];
+	index = -1;
+	closeQueue();
+	stopAndReset();
+}
+
+$('q-clear').onclick = queueClear;
+
+function renderQueue() {
+	const l = $('qlist');
+	$('qcount').textContent = songs.length ? '(' + songs.length + ')' : '';
+	if (!songs.length) {
+		l.innerHTML = '<div class="qempty">这里是空的</div>';
+		qFrom = -1; qTo = -1; qRowH = 0;
+		return;
+	}
+	if (!l.querySelector('#q-rows'))
+		l.innerHTML = '<div id="q-top"></div><div id="q-rows"></div><div id="q-bot"></div>';
+	qFrom = -1; qTo = -1; qRowH = 0;
+	renderQueueWindow(true);
+	const first = $('q-rows').firstElementChild;
+	if (first) {
+		const cs = getComputedStyle(first);
+		const h = first.getBoundingClientRect().height + (parseFloat(cs.marginBottom) || 0);
+		if (h > 8) {
+			qRowH = h;
+			renderQueueWindow(true);
+		} else {
+			// 还没布局（比如刚显示、字体还没算完），下一帧再量一次
+			requestAnimationFrame(() => {
+				const row = $('q-rows') && $('q-rows').firstElementChild;
+				if (!row) return;
+				const c2 = getComputedStyle(row);
+				const h2 = row.getBoundingClientRect().height + (parseFloat(c2.marginBottom) || 0);
+				if (h2 > 8) { qRowH = h2; renderQueueWindow(true); }
+			});
+		}
+	}
+}
+
+$('qlist').addEventListener('scroll', () => {
+	if (qRaf) return;
+	qRaf = requestAnimationFrame(() => { qRaf = 0; renderQueueWindow(false); });
+}, { passive: true });
+
+/* ---------- 长按歌曲：动作菜单 ---------- */
+
+let ssSong = null, lpTimer = 0, lpFrom = null, lpDone = false;
+
+// 长按 550ms 弹出；手指一动就取消（滚动列表的时候不该弹菜单）
+function bindLongPress(el, fn) {
+	el.addEventListener('touchstart', (e) => {
+		if (e.touches.length !== 1) return;
+		const t = e.touches[0];
+		lpFrom = { x: t.clientX, y: t.clientY };
+		lpDone = false;
+		clearTimeout(lpTimer);
+		lpTimer = setTimeout(() => { lpTimer = 0; lpDone = true; fn(); }, 550);
+	}, { passive: true });
+	el.addEventListener('touchmove', (e) => {
+		const t = e.touches[0];
+		if (!lpFrom || !t) return;
+		if (Math.abs(t.clientX - lpFrom.x) > 10 || Math.abs(t.clientY - lpFrom.y) > 10)
+			clearTimeout(lpTimer);
+	}, { passive: true });
+	el.addEventListener('touchend', () => clearTimeout(lpTimer));
+	el.addEventListener('touchcancel', () => clearTimeout(lpTimer));
+}
+
+// 长按之后紧跟的 click 要吃掉，否则会顺带把歌播起来
+function longPressAteClick() {
+	if (!lpDone) return false;
+	lpDone = false;
+	return true;
+}
+
+function closeSongSheet() { hideAnim($('ssheet'), 'closing', 160); }
+
+// 播客单集赞过的记录（后端没有查询接口，先在本地记着）
+function djLiked(id) {
+	try { return (JSON.parse(localStorage.getItem('ne-dj-liked') || '{}')[String(id)]) ? 1 : 0; }
+	catch (e) { return 0; }
+}
+function setDjLiked(id, on) {
+	try {
+		const m = JSON.parse(localStorage.getItem('ne-dj-liked') || '{}');
+		if (on) m[String(id)] = 1; else delete m[String(id)];
+		localStorage.setItem('ne-dj-liked', JSON.stringify(m));
+	} catch (e) { /* ignore */ }
+}
+
+async function openSongSheet(s) {
+	ssSong = s;
+	$('ss-title').textContent = s.name || '';
+	// 播客单集只有三件事可做：下一首 / 点赞 / 取消。
+	// 喜欢、不喜欢、收藏到歌单、歌手、专辑这些是"歌曲"的操作，单集上没意义。
+	const isDj = !!(s && s.pid);
+	const inFm = !!(listSrc && listSrc.kind === 'fm');
+	document.querySelectorAll('#ss-list [data-act]').forEach((b) => {
+		const act = b.dataset.act;
+		if (isDj) { b.hidden = !(act === 'next' || act === 'like' || act === 'cancel'); return; }
+		// "不喜欢"只在私人FM 里有 —— 它的云端语义（radio/trash）只影响推荐流，
+		// 在歌单/每日推荐里点它没有对应的线上功能，就不该出现在菜单里。
+		b.hidden = (act === 'dislike' && !inFm);
+	});
+	if (isDj) {
+		$('ss-like-label').textContent = djLiked(s.pid) ? '取消点赞' : '点赞';
+		$('ssheet').classList.remove('closing');
+		showAnim($('ssheet'));
+		return;
+	}
+	$('ss-like-label').textContent = '喜欢';
+	$('ssheet').classList.remove('closing');
+	showAnim($('ssheet'));
+	try {
+		const d = await e5.api('/like?id=' + s.id);
+		if (d && d.ok) $('ss-like-label').textContent = d.liked ? '取消喜欢' : '喜欢';
+	} catch (e) { /* 查不到就按'喜欢'显示 */ }
+}
+
+// 队列里存的歌只有 id/名字，歌手和专辑的 id 要现查
+async function songInfo(s) {
+	try {
+		const d = await e5.api('/songinfo?id=' + s.id);
+		return (d && d.ok) ? d : null;
+	} catch (e) { return null; }
+}
+
+async function openPlaylistPick(s) {
+	closeSongSheet();
+	$('plpick').classList.remove('closing');
+	showAnim($('plpick'));
+	const box = $('pl-list');
+	box.innerHTML = '<div class="qempty">加载中…</div>';
+	try {
+		const d = await e5.api('/mylists?uid=' + (me ? me.uid : 0));
+		if (!d || !d.ok) throw new Error((d && d.error) || '加载失败');
+		const made = d.made || [];
+		box.innerHTML = '';
+		if (!made.length) { box.innerHTML = '<div class="qempty">没有自己创建的歌单</div>'; return; }
+		for (const pl of made) {
+			const row = document.createElement('div');
+			row.className = 'qrow';
+			row.innerHTML = '<div class="qn2"><div class="q1"></div><div class="q2"></div></div>';
+			row.querySelector('.q1').textContent = pl.name || '';
+			row.querySelector('.q2').textContent = (pl.count || 0) + ' 首';
+			row.onclick = async () => {
+				try {
+					const r = await e5.api('/addto?id=' + s.id + '&pid=' + pl.id);
+					if (!r || !r.ok) throw new Error((r && r.error) || '收藏失败');
+					hideAnim($('plpick'), 'closing', 160);
+					setHint('已收藏到「' + (pl.name || '') + '」');
+				} catch (err) { setErr(err.message || '收藏失败'); }
+			};
+			box.append(row);
+		}
+	} catch (e) {
+		box.innerHTML = '<div class="qempty">加载失败</div>';
+	}
+}
+
+$('ss-close').onclick = closeSongSheet;
+$('ssheet').addEventListener('click', (e) => { if (e.target === $('ssheet')) closeSongSheet(); });
+$('pl-close').onclick = () => hideAnim($('plpick'), 'closing', 160);
+$('plpick').addEventListener('click', (e) => { if (e.target === $('plpick')) hideAnim($('plpick'), 'closing', 160); });
+
+$('ss-list').addEventListener('click', async (e) => {
+	const btn = e.target.closest('[data-act]');
+	if (!btn) return;
+	const act = btn.dataset.act;
+	const s = ssSong;
+	if (act === 'cancel' || !s) { closeSongSheet(); return; }
+	if (act === 'next') {
+		// 私人FM 里"下一首播放"没有插队意义 —— 电台本来就是无限的，插一首很快会被
+		// 下一首推荐顶掉。这里的语义改成：停掉电台，只留这一首单独放。
+		// 顺带把后端来源清掉（kind=none），否则续播还会从 FM 池子继续取歌。
+		if (listSrc && listSrc.kind === 'fm') {
+			songs = [s];
+			index = 0;
+			listSrc = null;
+			saveQueue(null, '');
+			e5.api('/plan?kind=none').catch(() => {});
+			closeSongSheet();
+			await playAt(0, 0);
+			setHint('已停止电台，单独播放这首');
+			return;
+		}
+		let at = songs.length;
+		if (curId) {
+			const ci = songs.findIndex((x) => String(x.id) === String(curId));
+			if (ci >= 0) at = ci + 1;
+		}
+		songs.splice(at, 0, s);
+		saveQueue(curTab, listHint);
+		// 光改本地队列没用：后端切歌是按 PLAN 取顺序的，必须让它知道这首排在最前面。
+		// 接口失败也不拦着——界面上的队列照旧，只是这首轮不到自动播。
+		try {
+			// 带上 pid：播客单集靠它才能在播到时进播客模式（红心变点赞）
+			await e5.api('/nextadd?id=' + encodeURIComponent(s.id) +
+				(s.pid ? '&pid=' + encodeURIComponent(s.pid) : ''));
+		} catch (e) {}
+		if (!$('queue').hidden) renderQueue();
+		closeSongSheet();
+		setHint(curId ? '已加入下一首播放' : '已加入播放列表');
+		return;
+	}
+	if (act === 'like' && s.pid) {
+		const on = $('ss-like-label').textContent === '取消点赞' ? 0 : 1;
+		try {
+			const d = await e5.api('/program/like?id=' + s.pid + '&on=' + on);
+			if (!d || !d.ok) throw new Error((d && d.error) || '操作失败');
+			setDjLiked(s.pid, on);
+			setHint(on ? '已点赞这集' : '已取消点赞');
+		} catch (err) { setErr(err.message || '操作失败'); }
+		closeSongSheet();
+		return;
+	}
+	if (act === 'like') {
+		const on = $('ss-like-label').textContent === '取消喜欢' ? 0 : 1;
+		try {
+			const d = await e5.api('/like?id=' + s.id + '&set=' + on);
+			if (!d || !d.ok) throw new Error((d && d.error) || '操作失败');
+			if (String(curId) === String(s.id)) { likedFor = 0; refreshLike(); }
+			setHint(on ? '已喜欢' : '已取消喜欢');
+		} catch (err) { setErr(err.message || '操作失败'); }
+		closeSongSheet();
+		return;
+	}
+	if (act === 'dislike') {
+		closeSongSheet();
+		dropSong(s);
+		return;
+	}
+	if (act === 'addto') { openPlaylistPick(s); return; }
+	if (act === 'artist' || act === 'album') {
+		closeSongSheet();
+		const info = await songInfo(s);
+		if (!info) { setErr('拿不到这首歌的信息'); return; }
+		if (act === 'artist') {
+			// 多歌手时列出来让人选。以前直接拿第一个 artistId 进歌手页，标题还显示
+			// "A / B" 整串，看着就像把两个名字当一个人搜了。
+			const list = (info.artists && info.artists.length)
+				? info.artists
+				: (info.artistId ? [{ id: info.artistId, name: info.artist }] : []);
+			if (!list.length) { setErr('这首没有关联歌手'); return; }
+			if (list.length > 1) { renderArtistPick(list); return; }
+			closeNow();
+			openArtistPage(list[0]);
+		} else {
+			if (!info.albumId) { setErr('这首没有关联专辑'); return; }
+			// 专辑页是渲染在主列表里的，歌手页还盖在上面就看不到了 —— 先收起来。
+			// 收之前记一下"是不是从歌手页进来的"：记了的话返回时才会回歌手页，
+			// 不记就掉回首页的分类列表（用户会觉得"返回错了地方"）。
+			const fromArtist = !$('apage').hidden && !!aPageId;
+			$('apage').hidden = true;   // 这里要立刻让位，不走淡出
+			openAlbum(info.albumId, fromArtist);
+		}
+	}
+});
+
+function openQueue() {
+	// 先显示再渲染：隐藏时 getBoundingClientRect 全是 0，量不到行高就只能按 60px 估，
+	// 虚拟窗口一长就滚歪（表现是卡在一个空白位置）。
+	showAnim($('queue'));
+	paintMode();
+	renderQueue();
+	// 定位到正在播的那首：上千首的队列从顶部打开等于没打开。
+	// 留两行余量，让当前歌落在偏上的位置而不是贴顶。
+	var ci = songs.findIndex(function (x) { return String(x.id) === String(curId); });
+	if (ci < 0) ci = index;
+	if (ci >= 0) {
+		var h = qRowH || 60;
+		$('qlist').scrollTop = Math.max(0, (ci - 2) * h);
+		renderQueueWindow(true);
+	} else {
+		$('qlist').scrollTop = 0;
+	}
+}
+function closeQueue() { hideAnim($('queue'), 'closing', 160); }
+
+/* ---------- 沉浸式播放页 ---------- */
+
+// 大页面的内容全部从底栏 + 共享变量同步过来，不另存一份状态
+// 顺手把后面几首的封面也下到本地，切歌时就不用等网络了
+function prefetchCovers(from) {
+	if (curPid > 0) return;                 // 播客封面走 cov，不是专辑图
+	if (!songs.length) return;
+	const ids = [];
+	for (let k = 1; k <= 6 && k < songs.length; k++) {
+		const s = songs[(from + k) % songs.length];
+		if (s && s.id) ids.push(s.id);
+	}
+	if (!ids.length) return;
+	// audio=1：让后端把接下来两首的 mp3 也下好，切歌就是秒切
+	e5.api('/prefetch?ids=' + ids.join(',') + '&audio=1').catch(() => {});
+}
+
+// 换封面时先淡出、等新图解码完再淡入；图是本地缓存的，通常几十毫秒
+let coverShown = '';
+// 沉浸页里的文字/背景换内容时来一下淡入，别硬切
+// 切歌时在封面上转圈（底栏 + 沉浸页）
+function setCoverLoading(on) {
+	const c = $('cover');
+	if (c) c.classList.toggle('loading', !!on);
+	const art = document.querySelector('#now .art');
+	if (art) art.classList.toggle('loading', !!on);
+}
+
+function fadeNow() {
+	const now = $('now');
+	if (!now || now.hidden) return;
+	const meta = now.querySelector('.meta');
+	if (!meta) return;
+	meta.classList.remove('swap');
+	void meta.offsetWidth;
+	meta.classList.add('swap');
+	setTimeout(() => meta.classList.remove('swap'), 300);
+}
+
+// 手动补间：这台 WPE 上 CSS transition / WAAPI 都不一定触发，
+// 但 requestAnimationFrame + 改 style 一定会有视觉效果。
+function tweenOpacity(node, from, to, ms, done) {
+	const t0 = performance.now();
+	node.style.opacity = String(from);
+	const step = (t) => {
+		const k = Math.min(1, (t - t0) / ms);
+		node.style.opacity = String(from + (to - from) * k);
+		if (k < 1) requestAnimationFrame(step);
+		else if (done) done();
+	};
+	requestAnimationFrame(step);
+}
+
+let coverToken = 0;
+function paintCover(url, force) {
+	const base = $('now-cover');
+	const top = $('now-cover2');
+	if (!base || !top) return;
+	if (!force && url === coverShown) return;
+	coverShown = url;
+	const token = ++coverToken;
+	base.classList.toggle('empty', !url);
+
+	if (!url) {
+		base.style.backgroundImage = '';
+		top.style.backgroundImage = '';
+		top.style.opacity = '0';
+		updatePalette('');
+		return;
+	}
+
+	// 沉浸页没打开时不做交叉淡入：隐藏状态下 rAF 会被节流，动画回调可能压根不跑，
+	// 于是上层没淡进来、底层也没换图 —— 等用户打开时就是一片空白（实测的复现路径：
+	// 关掉应用 → 后端自动换歌 → 重进，新歌封面一直不出来）。
+	if ($('now').hidden) {
+		top.style.backgroundImage = '';
+		top.style.opacity = '0';
+		base.style.backgroundImage = 'url("' + url + '")';
+		updatePalette(url);
+		return;
+	}
+
+	// 新图铺在上层做透明度过渡，旧图一直留在下层 —— 交叉淡入，中间不会白
+	top.style.backgroundImage = 'url("' + url + '")';
+	updatePalette(url);
+	console.log('[netease] cover fade ' + url);
+	tweenOpacity(top, 0, 1, 260, () => {
+		if (token !== coverToken) return;
+		base.style.backgroundImage = 'url("' + url + '")';
+		top.style.opacity = '0';
+		top.style.backgroundImage = '';
+	});
+
+	// 背景色块也跟着暗一下再回来，避免色调整块硬跳
+	const bgEl = $('now-bg');
+	if (bgEl) {
+		tweenOpacity(bgEl, 1, 0.45, 130, () => {
+			if (token !== coverToken) return;
+			tweenOpacity(bgEl, 0.45, 1, 320);
+		});
+	}
+}
+
+function syncNow() {
+	$('now-title').textContent = $('n-title').textContent;
+	$('now-sub').textContent = $('n-sub').textContent;
+	paintCover(curCover);
+	$('now-cur').textContent = fmt(posMs);
+	$('now-dur').textContent = fmt(curDuration);
+	// 手指按在进度条上时不要被计时器拉回去
+	if (!dragging) {
+		$('now-bar').style.width = curDuration ? Math.min(100, (posMs / curDuration) * 100) + '%' : '0';
+		$('now-cur').textContent = fmt(posMs);
+	}
+	$('now-toggle').innerHTML = (playing && !paused) ? ICON_PAUSE : ICON_PLAY;
+	paintTrialDot();
+	paintModeChrome();
+}
+
+// 私人FM 没有队列可言，把播放列表入口藏掉（沉浸页和底栏各一个）；
+// 同时它是"沉浸式播放的快捷方式"，所以用顶栏的 FM 按钮高亮表示正在放 FM
+function paintModeChrome() {
+	const fm = !!(listSrc && listSrc.kind === 'fm');
+	$('now-queue').hidden = fm;
+	$('q-open').hidden = fm;
+	$('fm').classList.toggle('on', fm);
+}
+
+// 私人FM：不是一个页面，是"开一个电台"的动作 —— 拉一批歌、立刻起播、直接进沉浸页
+async function startFm() {
+	if (!me) { needLogin(); return; }
+	if (busy) return;
+	busy = true;
+	setErr('');
+	try {
+		// 接口一次只给 3 首左右，连拉几拨，上一首/下一首才有余地
+		let list = [];
+		for (let k = 0; k < 4 && list.length < 12; k++) {
+			const d = await e5.api('/fm');
+			if (d && d.need_login) { busy = false; needLogin(); return; }
+			if (!d || !d.songs) break;
+			list = list.concat(d.songs);
+		}
+		const seen = {};
+		const fmList = [];
+		list.forEach((x) => {
+			if (seen[String(x.id)]) return;
+			seen[String(x.id)] = 1;
+			fmList.push(x);
+		});
+		if (!fmList.length) { setErr('拿不到 FM 歌曲'); return; }
+		// FM 不是一个"列表"，所以不碰浏览区（viewSongs/viewSrc），
+		// 只把它当播放队列，起播后直接进沉浸页。
+		songs = fmList;
+		listSrc = { kind: 'fm' };
+		index = -1;
+		saveQueue('fm', '私人FM');
+		paintModeChrome();     // 藏掉播放列表入口：电台没有列表可看
+		syncPlan();
+		await playAt(0);
+		openNow();
+	} catch (e) {
+		setErr('私人FM 失败：' + (e && e.message ? e.message : e));
+	} finally {
+		busy = false;
+	}
+}
+
+$('fm').onclick = startFm;
+
+function openNow() {
+	paintMode();          // 按钮里的图标是按当前模式画的，打开时补一次
+	syncNow();
+	paintCover(curCover, true);   // 打开时强制重画：可能有"已记录但没铺上图"的窗口期
+	if (!curId) pollStatus();     // 还不知道在放什么就先问一次，别等下一轮
+	showAnim($('now'));
+	paintLike();
+	refreshLike();
+	applyTheme();
+}
+var lastListAnim = 0;
+var listDir = 1;
+
+// 让当前分类滚到 tab 栏中间。分类比屏幕宽，不滚的话按到后面的分类就看不见了。
+// 用 scrollLeft 直接赋值而不是 scrollIntoView({behavior:'smooth'}) —— 这台 WPE
+// 对 scroll 的 options 支持不全，平滑滚动会直接跳过去或者完全不动。
+function centerTab(btn) {
+	var box = $('tabs');
+	if (!box || !btn) return;
+	var target = btn.offsetLeft - (box.clientWidth - btn.offsetWidth) / 2;
+	box.scrollLeft = Math.max(0, target);
+}      // 1 = 从右边进（往左翻页），-1 = 从左边进（往右翻页）
+// 主列表切页：从右侧滑入。
+// 用 JS 逐帧插值而不是 CSS animation —— 这台 WPE 对 animation 的重新触发不可靠，
+// 而且之前那版「克隆旧内容做 ghost」会在 innerHTML 重建时留一帧空白，看起来就是闪。
+// 节流 350ms：renderSongs 在滚动时会频繁调用。
+function showListAnim() {
+	var now = Date.now();
+	if (now - lastListAnim < 350) return;
+	lastListAnim = now;
+	var l = $('list');
+	if (!l || !l.firstElementChild) return;
+
+	var dir = listDir;
+	listDir = 1;            // 用完复位：只有滑动会改它，点 tab 一律从右进
+	var t0 = 0, dur = 200;
+	l.style.willChange = 'transform, opacity';
+	function step(t) {
+		if (!t0) t0 = t;
+		var p = Math.min(1, (t - t0) / dur);
+		var e = 1 - Math.pow(1 - p, 3);          // easeOutCubic
+		l.style.opacity = String(0.4 + 0.6 * e);
+		l.style.transform = 'translateX(' + (7 * dir * (1 - e)).toFixed(2) + '%)';
+		if (p < 1) requestAnimationFrame(step);
+		else {
+			l.style.opacity = '';
+			l.style.transform = '';
+			l.style.willChange = '';
+		}
+	}
+	l.style.opacity = '0.4';
+	l.style.transform = 'translateX(' + (7 * dir) + '%)';
+	requestAnimationFrame(step);
+}
+
+// 显示并播放进入动画。直接 hidden=false 时 WebKit 不一定重启动画 ——
+// 必须读一次 offsetWidth 强制重排，animation 才会从头播。
+function showAnim(el) {
+	if (!el || !el.hidden) return;
+	el.hidden = false;
+	el.classList.remove('anim-in');
+	void el.offsetWidth;
+	el.classList.add('anim-in');
+}
+
+function hideAnim(el, cls, ms, done) {
+	if (!el || el.hidden) return;
+	el.classList.add(cls);
+	setTimeout(() => {
+		if (!el.classList.contains(cls)) return;   // 期间又被打开了
+		el.classList.remove(cls);
+		el.hidden = true;
+		if (done) done();
+	}, ms);
+}
+
+function closeNow() {
+	toggleLyrics(false);
+	hideAnim($('now'), 'closing', 200);
+}
+
+// 点底栏空白处展开（点控制按钮不算）
+$('nowbar').onclick = (e) => {
+	if (e.target.closest('.ctl')) return;
+	if (swiped) { swiped = false; return; }   // 刚才是滑动切歌，不是点击
+	openNow();
+};
+$('now-close').onclick = closeNow;
+$('now-prev').onclick = () => step(-1);
+$('now-next').onclick = () => step(1);
+$('now-toggle').onclick = toggle;
+
+$('toggle').onclick = toggle;
+// 底栏左右滑动切歌（上下首按钮已经去掉，给标题让位置）
+let swiped = false;
+
+// 手势过程中**不碰样式**（每次 touchmove 都改 transform 会在 WPE 上抖成幻灯），
+// 只在松手后做一次 26px 的轻推反馈，然后切歌。
+function nudgeBar(dir) {
+	const bar = $('nowbar');
+	bar.style.transition = 'transform .16s ease-out';
+	bar.style.transform = 'translateX(' + (dir * 26) + 'px)';
+	setTimeout(() => {
+		bar.style.transform = '';
+		setTimeout(() => { bar.style.transition = ''; }, 180);
+	}, 140);
+}
+
+(function bindSwipeBar() {
+	const bar = $('nowbar');
+	let x0 = 0, y0 = 0, dx = 0, active = false;
+	bar.addEventListener('touchstart', (e) => {
+		if (e.touches.length !== 1) return;
+		const t = e.touches[0];
+		x0 = t.clientX; y0 = t.clientY; dx = 0; active = true; swiped = false;
+	}, { passive: true });
+	bar.addEventListener('touchmove', (e) => {
+		if (!active) return;
+		const t = e.touches[0];
+		const ndx = t.clientX - x0;
+		const dy = t.clientY - y0;
+		// 竖着划就给页面滚，不跟我们抢
+		if (Math.abs(dy) > 24 && Math.abs(dy) > Math.abs(ndx)) { active = false; return; }
+		dx = ndx;
+	}, { passive: true });
+	bar.addEventListener('touchend', () => {
+		if (!active) return;
+		active = false;
+		if (Math.abs(dx) < 42) return;
+		swiped = true;               // 别让随后的 click 又把沉浸页打开
+		nudgeBar(dx < 0 ? -1 : 1);
+		step(dx < 0 ? 1 : -1);
+	});
+})();
+
+/* ---------- 歌词 ---------- */
+
+// 沉浸页点一下封面/歌名切到歌词页，再轻点一下切回来。歌词跟着播放进度滚。
+let lyricLines = null, lyricId = 0, lyIndex = -1;
+let userScrollAt = 0, lyrTouchX = 0, lyrTouchY = 0, lyrMovedAt = 0;
+
+const lyricsMode = () => $('now').classList.contains('lyrics-mode');
+
+function toggleLyrics(on) {
+	// 播客没有歌词页：点了也别切，省得进到一整页"没有歌词"
+	if (curPid > 0) {
+		$('now').classList.remove('lyrics-mode');
+		return;
+	}
+	const want = (on === undefined) ? !lyricsMode() : !!on;
+	$('now').classList.toggle('lyrics-mode', want);
+	if (want) { lyIndex = -1; loadLyrics(curId); paintLyrics(true); }
+}
+
+async function loadLyrics(id) {
+	const box = $('lyr-inner');
+	if (!id) { box.innerHTML = '<div class="lyr-empty">这首歌没有歌词</div>'; return; }
+	if (lyricId === id && lyricLines) return;
+	lyricId = id;
+	lyricLines = null;
+	lyIndex = -1;
+	box.innerHTML = '<div class="lyr-empty">歌词加载中…</div>';
+	try {
+		const d = await e5.api('/lyric?id=' + id);
+		if (lyricId !== id) return;                 // 期间又换歌了
+		if (!d || !d.ok || !d.lines || !d.lines.length) {
+			box.innerHTML = '<div class="lyr-empty">这首歌没有歌词</div>';
+			return;
+		}
+		lyricLines = d.lines;
+		box.innerHTML = '';
+		lyricLines.forEach((l) => {
+			const el = document.createElement('div');
+			el.className = 'lyr-line';
+			const a = document.createElement('span');
+			a.className = 's';
+			if (l.w && l.w.length) {
+				// 逐字歌词：每个字一个 span，播放时按时间逐个点亮
+				el.classList.add('kala');
+				l.w.forEach((w) => {
+					const c = document.createElement('span');
+					c.className = 'wc';
+					c.textContent = w.s;
+					a.appendChild(c);
+				});
+				el._wt = l.w.map((x) => x.t);
+			} else {
+				a.textContent = l.s;
+			}
+			el.appendChild(a);
+			if (l.tr) {                              // 非中文歌的中文翻译
+				const b = document.createElement('span');
+				b.className = 'tr';
+				b.textContent = l.tr;
+				el.appendChild(b);
+			}
+			box.appendChild(el);
+		});
+		lyIndex = -1;
+		paintLyrics(true);
+	} catch (e) {
+		box.innerHTML = '<div class="lyr-empty">歌词加载失败</div>';
+	}
+}
+
+// 换歌了：歌词跟着换
+function refreshLyrics() {
+	if (!lyricsMode()) return;
+	lyricLines = null;
+	lyricId = 0;
+	loadLyrics(curId);
+}
+
+function scrollLyricTo(el) {
+	const box = $('lyr');
+	const target = Math.max(0, el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2);
+	const from = box.scrollTop;
+	if (Math.abs(target - from) < 2) return;
+	const t0 = Date.now(), dur = 260;
+	const run = () => {
+		const k = Math.min(1, (Date.now() - t0) / dur);
+		box.scrollTop = from + (target - from) * (1 - Math.pow(1 - k, 3));
+		if (k < 1) requestAnimationFrame(run);
+	};
+	requestAnimationFrame(run);
+}
+
+function paintLyrics(force) {
+	if (!lyricLines || $('now').hidden || !lyricsMode()) return;
+	let k = 0;
+	for (let i = 0; i < lyricLines.length; i++) {
+		if (lyricLines[i].t <= posMs + 120) k = i; else break;
+	}
+	// 间奏：这一句和下一句隔得远，说明中间是纯音乐。
+	// 这时候把最后 1.5 秒的高亮取消掉，不然一句歌词会挂十几秒，
+	// 看起来像"卡住了"。最后一句没有下一句，按唱完 4.5 秒算。
+	if (k >= 0 && k < lyricLines.length) {
+		const cur = lyricLines[k];
+		const nxt = lyricLines[k + 1];
+		if (nxt) {
+			const gap = nxt.t - cur.t;
+			if (gap > 6000 && posMs > nxt.t - 1500) k = -1;
+		} else if (posMs > cur.t + 4500) {
+			k = -1;
+		}
+	}
+	if (k === lyIndex && !force) return;
+	const kids = $('lyr-inner').children;
+	const prev = lyIndex;
+	lyIndex = k;
+	// 全部清掉，不只 prev：手动滚动、歌词跳变、force 重绘都可能留下
+	// 不止一个 .on，表现就是"两句同时高亮"。
+	for (let i = 0; i < kids.length; i++) kids[i].classList.remove('on');
+	if (!kids[k]) return;
+	kids[k].classList.add('on');
+	// 逐字行：把已经唱到的字点亮
+	const cur = kids[k];
+	if (cur._wt && cur._wt.length) {
+		const wc = cur.querySelectorAll('.wc');
+		const wt = cur._wt;
+		let n = 0;
+		while (n < wt.length && wt[n] <= posMs) n++;
+		for (let i = 0; i < wc.length; i++) wc[i].classList.toggle('done', i < n);
+	}
+	// 用户刚手动滚过就先别抢，3.5 秒后恢复自动跟
+	if (k !== prev && Date.now() - userScrollAt > 3500) scrollLyricTo(kids[k]);
+}
+
+// 点封面或歌名进歌词页
+document.querySelector('#now .art').onclick = () => toggleLyrics(true);
+document.querySelector('#now .meta').onclick = () => toggleLyrics(true);
+
+// 歌词页里：拖动=翻看（暂停自动滚），轻点=回封面。
+// 一律用 click 判断"轻点"，不要用 touchend —— touchend 里把歌词收起来之后，
+// WebKit 还会补发一个 click，那时封面已经显示出来了，正好落在 .art 上又被切回歌词，
+// 表现就是"点了没反应"。
+$('lyr').addEventListener('touchstart', (e) => {
+	const t = e.touches[0];
+	if (!t) return;
+	lyrTouchX = t.clientX;
+	lyrTouchY = t.clientY;
+	userScrollAt = Date.now();
+}, { passive: true });
+$('lyr').addEventListener('touchmove', (e) => {
+	const t = e.touches[0];
+	if (!t) return;
+	if (Math.abs(t.clientY - lyrTouchY) > 10 || Math.abs(t.clientX - lyrTouchX) > 10)
+		lyrMovedAt = Date.now();          // 超过 10px 才算滚动，手指抖动不算
+	userScrollAt = Date.now();
+}, { passive: true });
+$('lyr').addEventListener('touchend', () => { userScrollAt = Date.now(); });
+$('lyr').onclick = () => {
+	if (Date.now() - lyrMovedAt > 500) toggleLyrics(false);   // 刚滚过就不当成轻点
+};
+
+/* ---------- 专辑取色 ---------- */
+
+// 把封面缩到 16×16 画到 canvas 上，按色桶统计出现最多的三个颜色。
+// 图片是同源缓存（/plugins/netease/cache/*），不会有 canvas 污染问题。
+let palSource = '', palRaw = null;
+
+function colorDist(a, b) {
+	const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
+	return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function extractPalette(src, cb) {
+	const img = new Image();
+	img.onload = () => {
+		try {
+			const n = 16;
+			const cv = document.createElement('canvas');
+			cv.width = n; cv.height = n;
+			const g = cv.getContext('2d');
+			g.drawImage(img, 0, 0, n, n);
+			const d = g.getImageData(0, 0, n, n).data;
+			const buckets = new Map();
+			for (let i = 0; i < d.length; i += 4) {
+				if (d[i + 3] < 200) continue;
+				const r = d[i], gg = d[i + 1], b = d[i + 2];
+				const key = ((r >> 4) << 8) | ((gg >> 4) << 4) | (b >> 4);
+				const cur = buckets.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+				cur.n++; cur.r += r; cur.g += gg; cur.b += b;
+				buckets.set(key, cur);
+			}
+			const list = Array.from(buckets.values()).sort((x, y) => y.n - x.n);
+			const out = [];
+			for (const c0 of list) {
+				const col = { r: c0.r / c0.n, g: c0.g / c0.n, b: c0.b / c0.n };
+				const lum = (col.r * 0.299 + col.g * 0.587 + col.b * 0.114) / 255;
+				if (lum < 0.06 || lum > 0.96) continue;          // 纯黑纯白没意义
+				if (out.some((x) => colorDist(x, col) < 42)) continue;  // 太接近的不要
+				out.push(col);
+				if (out.length >= 3) break;
+			}
+			cb(out);
+		} catch (e) { cb(null); }
+	};
+	img.onerror = () => cb(null);
+	img.src = src;
+}
+
+// 深色把颜色压暗、浅色把它提亮白，保证上面的文字始终读得清
+function applyPalette(cols) {
+	const el = $('now-bg');
+	if (!el) return;
+	const light = document.body.dataset.theme === 'light';
+	const def = light ? ['#dfe9f4', '#e9f0f8', '#e4eef7'] : ['#141b26', '#111822', '#0e141d'];
+	const conv = (c) => {
+		let r = c.r, g = c.g, b = c.b;
+		if (light) { r = r + (255 - r) * .82; g = g + (255 - g) * .82; b = b + (255 - b) * .82; }
+		else { r *= .40; g *= .40; b *= .40; }
+		return 'rgb(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ')';
+	};
+	const got = (cols || []).map(conv);
+	for (let i = 0; i < 3; i++) el.style.setProperty('--c' + (i + 1), got[i] || def[i]);
+}
+
+function updatePalette(src) {
+	if (!src) { palSource = ''; palRaw = null; applyPalette(null); return; }
+	if (src === palSource) return;
+	palSource = src;
+	palRaw = null;
+	extractPalette(src, (cols) => {
+		if (palSource !== src) return;    // 期间又换歌了
+		palRaw = cols;
+		applyPalette(cols);
+	});
+}
+
+/* ---------- 拖进度条 ---------- */
+
+// 进程播放没有 seek，只能让后端停掉重开、用 -k 跳帧，所以松手才发请求，
+// 拖动过程中只改界面。
+const trackEl = $('now-track');
+let dragging = false, dragRatio = 0;
+
+
+function ratioAt(e) {
+	const r = trackEl.getBoundingClientRect();
+	const p = (e.touches && e.touches[0]) ? e.touches[0] : e;
+	if (!r.width) return 0;
+	let ratio = Math.max(0, Math.min(1, (p.clientX - r.left) / r.width));
+	// 试听片段：拖不过上限。钳在这里而不是只拦 endDrag，
+	// 这样拖动的时候滑块就停在边界上，手感是"拖不动"而不是"松手被打回"。
+	if (trialLimitSec > 0 && curDuration > 0) {
+		const maxRatio = (trialLimitSec * 1000) / curDuration;
+		if (ratio > maxRatio) ratio = maxRatio;
+	}
+	return ratio;
+}
+
+// 把白点摆到"试听到此为止"的位置。比例按整首歌的长度算，
+// 所以点在进度条上偏左，跟实际听感一致（只能听开头一小截）。
+function paintTrialDot() {
+	const dot = $('trial-dot');
+	if (!dot) return;
+	// 用 style.display 而不是 hidden 属性：这个页面的 CSS 里没有通用的
+	// [hidden] { display: none }，只给几个具体元素单独写了规则，
+	// 所以 hidden 在这颗白点上不生效 —— 表现就是"切到普通歌它还亮着"。
+	if (trialLimitSec <= 0 || !curDuration) {
+		dot.style.display = 'none';
+		return;
+	}
+	const r = Math.min(1, (trialLimitSec * 1000) / curDuration);
+	dot.style.display = 'block';
+	dot.style.left = (r * 100) + '%';
+}
+
+function paintDrag() {
+	$('now-bar').style.width = (dragRatio * 100) + '%';
+	$('now-cur').textContent = fmt(dragRatio * curDuration);
+}
+
+function beginDrag(e) {
+	if (!curDuration) return;
+	dragging = true;
+	dragRatio = ratioAt(e);
+	paintDrag();
+	if (e.cancelable) e.preventDefault();
+}
+
+function moveDrag(e) {
+	if (!dragging) return;
+	dragRatio = ratioAt(e);
+	paintDrag();
+	if (e.cancelable) e.preventDefault();
+}
+
+async function endDrag() {
+	if (!dragging) return;
+	dragging = false;
+	const sec = Math.round((dragRatio * curDuration) / 1000);
+	try {
+		const d = await e5.api('/seek?pos=' + sec);
+		if (!d || !d.ok) throw new Error((d && d.error) || '定位失败');
+		// 拖的时候是暂停状态，重开的进程是播放着的，得再停一下
+		if (paused) await e5.api('/pause');
+		posMs = sec * 1000;
+		lastTick = Date.now();
+		renderProgress();
+	} catch (err) {
+		setErr('拖动失败：' + (err && err.message ? err.message : err));
+		syncNow();
+	}
+}
+
+trackEl.addEventListener('touchstart', beginDrag, { passive: false });
+trackEl.addEventListener('touchmove', moveDrag, { passive: false });
+trackEl.addEventListener('touchend', endDrag);
+trackEl.addEventListener('touchcancel', endDrag);
+trackEl.addEventListener('mousedown', beginDrag);
+window.addEventListener('mousemove', (e) => { if (dragging) moveDrag(e); });
+window.addEventListener('mouseup', () => { if (dragging) endDrag(); });
+
+/* ---------- 喜欢 / 不喜欢 / 歌手页 ---------- */
+
+// 当前这首的歌手（从 /status 的 artists 拿，形如 [{id,name}, ...]）
+let curArtists = [];
+let likedState = 0, likedFor = 0;
+let curPid = 0;            // 播客节目 id（>0 表示当前放的是播客）
+
+const ICON_HEART = '<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>';
+
+
+function paintLike() {
+	const b = $('now-like');
+	if (!b) return;
+	// 播客（节目）：没有"喜欢"和"不想听"，换成"点赞"（对应 App 的点赞单集）
+	const isProg = curPid > 0;
+	b.hidden = isProg;
+	const d = $('now-dislike');
+	// "不想听"= 不喜欢，只在私人FM 有意义
+	if (d) d.hidden = isProg || !(listSrc && listSrc.kind === 'fm');
+	const dj = $('now-djlike');
+	if (dj) {
+		dj.hidden = !isProg;
+		if (isProg) {
+			const on = djLiked(curPid);
+			dj.classList.toggle('on', !!on);   // .ico.on 会染成主题色并填充图标
+			dj.setAttribute('aria-label', on ? '取消点赞' : '点赞');
+		}
+	}
+	if (b.dataset.kind !== 'heart') { b.innerHTML = ICON_HEART; b.dataset.kind = 'heart'; }
+	b.classList.toggle('on', !!likedState);
+	b.setAttribute('aria-label', likedState ? '取消喜欢' : '喜欢');
+}
+
+async function refreshLike() {
+	if (!curId || curPid > 0) return;      // 播客不查喜欢
+	if (likedFor === curId) return;
+	likedFor = curId;
+	try {
+		const d = await e5.api('/like?id=' + curId);
+		likedState = (d && d.ok) ? d.liked : 0;
+	} catch (e) { likedState = 0; }
+	paintLike();
+}
+
+async function toggleLike() {
+	if (!curId || curPid > 0) return;
+	const want = likedState ? 0 : 1;
+	try {
+		const d = await e5.api('/like?id=' + curId + '&set=' + want);
+		if (!d || !d.ok) throw new Error((d && d.error) || '操作失败');
+		likedState = d.liked;
+		paintLike();
+	} catch (e) { setErr((e && e.message ? e.message : '操作失败')); }
+}
+
+// "不想听"：只是这次从当前列表里去掉并跳下一首，不写任何黑名单，
+// 下次进同一个列表它还在。想永久屏蔽才需要黑名单，那是另一回事。
+function dropCurrent() {
+	if (!songs.length) return;
+	// 电台：交给 dropSong，它会让后端换歌，本地不做增删
+	if (listSrc && listSrc.kind === 'fm') {
+		const cur = songs[index];
+		if (cur) dropSong(cur);
+		return;
+	}
+	// index 可能因为后端续播/恢复而失配，先按 id 找一次
+	let at = index;
+	if (at < 0 || !songs[at] || String(songs[at].id) !== String(curId))
+		at = songs.findIndex((x) => String(x.id) === String(curId));
+	if (at < 0) { setErr('这首不在当前列表里'); return; }
+	index = at;
+	const gone = songs[at] ? songs[at].name : '';
+	const goneId = songs[at] ? String(songs[at].id) : '';
+	songs.splice(index, 1);
+	if (index >= songs.length) index = songs.length - 1;
+	// 正在浏览的列表里也有这首的话一起拿掉
+	const vi = viewSongs.findIndex((x) => String(x.id) === goneId);
+	if (vi >= 0) viewSongs.splice(vi, 1);
+	renderSongs();
+	saveQueue(curTab, listHint);
+	setErr('这次先不听' + (gone ? '：' + gone : ''));
+	setTimeout(() => setErr(''), 2600);
+	if (songs.length) playAt(index);
+	else { playing = false; paused = false; setToggleIcon(false); }
+}
+
+// 不喜欢：把这首从当前列表和播放队列里拿掉。正在放就接着放下一首。
+// 后端没有"反馈给推荐"的接口，所以只做本地的"这次先不听"。
+function dropSong(s) {
+	const id = String(s.id);
+	// "不喜欢"只属于私人FM（垃圾桶接口 alg=RT 也只影响推荐流），
+	// 所以这个函数现在只会在电台下被调用。
+	const inFm = !!(listSrc && listSrc.kind === 'fm');
+	if (inFm) {
+		e5.api('/fm/skip?id=' + id).then((d) => {
+			if (d && d.cloud) setHint('已不喜欢 · 之后不会再推荐');
+			// 踩的正是正在放的这首：让后端换一首（本地队列不删 ——
+			// 电台的队列由后端池子决定，本地删了会和实际播放对不上）
+			if (String(curId) === id) step(1);
+		}).catch(() => {});
+		return;
+	}
+	const vi = viewSongs.findIndex((x) => String(x.id) === id);
+	if (vi >= 0) { viewSongs.splice(vi, 1); renderSongs(); }
+	const qi = songs.findIndex((x) => String(x.id) === id);
+	if (qi >= 0) {
+		const wasCurrent = String(curId) === id;
+		songs.splice(qi, 1);
+		if (qi < index) index--;
+		if (wasCurrent) {
+			if (index >= songs.length) index = songs.length - 1;
+			if (songs.length) playAt(index);
+			else { playing = false; paused = false; setToggleIcon(false); }
+		}
+		saveQueue(curTab, listHint);
+		if (!$('queue').hidden) renderQueue();
+	}
+	setHint('已不喜欢：' + (s.name || ''));
+}
+
+// 歌手选择列表：沉浸页点歌手名、长按菜单的"歌手"都走这里。
+// 多个歌手时让人自己选，别把 "A / B" 整串当成一个人的名字。
+function renderArtistPick(list) {
+	const l = $('plist');
+	l.innerHTML = '';
+	list.forEach((a, i) => {
+		const row = document.createElement('div');
+		row.className = 'qrow';
+		row.innerHTML = '<div class="qi"></div><div class="qn2"><div class="q1"></div></div>';
+		row.querySelector('.qi').textContent = i + 1;
+		row.querySelector('.q1').textContent = a.name;
+		row.onclick = () => { closePick(); closeNow(); openArtistPage(a); };
+		l.appendChild(row);
+	});
+	showAnim($('pick'));
+}
+
+function openPick() {
+	if (!curArtists.length) { setErr('还不知道歌手是谁，等这一轮状态同步完再点'); return; }
+	// 进歌手页前先收起沉浸页，否则它会一直盖在歌手页上面
+	if (curArtists.length === 1) { closeNow(); openArtistPage(curArtists[0]); return; }
+	renderArtistPick(curArtists);
+}
+function closePick() { hideAnim($('pick'), 'closing', 140); }
+
+// 歌手页其实就是把主列表换成这个歌手的热门 50 首（顺序固定，后端续播也对得上）
+/* ---------- 独立歌手页 ---------- */
+let aPageId = 0, aPageName = '';
+// 歌手页单独用一个序号。以前跟 loadTab/openArtist 共用全局 viewSeq，那边一动
+// 这边刚发出去的请求就被判成"过期"丢掉 —— 排序切换看起来完全没反应。
+let aPageSeq = 0;
+
+async function openArtistPage(a) {
+	if (!a || !a.id) return;
+	aPageId = a.id;
+	aPageName = a.name || '';
+	// 先占位但保持透明，等数据到了再淡入，避免"空名字先亮一下再被替换"
+	$('a-name').textContent = aPageName;
+	$('a-name').style.opacity = '0';
+	$('a-meta').textContent = '加载中…';
+	$('a-meta').style.opacity = '0';
+	$('a-bg').style.opacity = '0';
+	// 只清行容器，别清 a-list —— 上下的占位块（a-top/a-bot）和"到底了"都在里面，
+	// 整块清掉的话 getElementById('a-rows') 后面就是 null，列表一片空白。
+	aRowH = 0;
+	aWinFrom = aWinTo = -1;
+	const rowsBox = $('a-rows');
+	if (rowsBox) rowsBox.innerHTML = '';
+	$('a-bg').style.backgroundImage = '';
+	$('a-follow').classList.remove('on');
+	// 每次进歌手页都回到"歌曲"，专辑列表也清掉（换歌手了不能留上一个的）
+	aTab = 'songs';
+	albumList = [];
+	albumMore = 0;
+	albumTotal = 0;
+	paintArtistTabs();
+	showAnim($('apage'));
+	$('apage').scrollTop = 0;
+	await loadArtistPage();
+}
+
+async function loadArtistPage() {
+	const seq = ++aPageSeq;
+	setHint('加载中…');
+	const load = $('a-load');
+	if (load) load.style.display = 'flex';
+	try {
+		// 跟网易云一致：热度只给 50 首（够看代表作），时间排序才翻全部。
+		// 热度页不再往下加载 —— 五十首就是五十首，滚到底也不该冒出更多。
+		const lim = artistOrder === 'time' ? 100 : 50;
+		const d = await e5.api('/artist?id=' + aPageId + '&offset=0&limit=' + lim + '&order=' + artistOrder);
+		if (seq !== aPageSeq) { console.log('[netease] artist stale, seq=' + seq + ' cur=' + aPageSeq); return; }
+		if (!d || !d.ok) throw new Error((d && d.error) || '加载失败');
+		console.log('[netease] artist loaded order=' + artistOrder + ' first=' +
+			((d.songs && d.songs[0]) ? d.songs[0].name : 'none') + ' n=' + ((d.songs || []).length));
+		viewSongs = d.songs || [];
+		// startQueue() 是把 viewSrc 当播放来源的，不设的话点歌播放没有 PLAN，
+		// 自动续播会断（后端不知道这串歌从哪儿来）。
+		viewSrc = { kind: 'artist', sid: aPageId };
+		artistName = d.name || aPageName;
+		artistTotal = d.count || 0;
+		// 热度排序不往下翻：接口可能还会说"还有"，但那是按热度排的全部曲目，
+		// 不是用户想看的"代表作"。切到时间排序才有"加载更多"。
+		artistMore = (artistOrder === 'time' && d.more) ? 1 : 0;
+		const nameEl = $('a-name'), metaEl = $('a-meta');
+		nameEl.style.opacity = '0';
+		metaEl.style.opacity = '0';
+		nameEl.textContent = artistName;
+		const bits = [];
+		if (artistTotal) bits.push(artistTotal + ' 首');
+		if (d.albums) bits.push(d.albums + ' 张专辑');
+		if (d.alias) bits.push(d.alias);
+		metaEl.textContent = bits.join(' · ');
+		requestAnimationFrame(() => {
+			nameEl.style.transition = 'opacity .3s ease-out';
+			metaEl.style.transition = 'opacity .3s ease-out';
+			nameEl.style.opacity = '1';
+			metaEl.style.opacity = '1';
+		});
+		const bgEl = $('a-bg');
+		if (d.pic) {
+			bgEl.style.backgroundImage = 'url("' + d.pic + '")';
+			requestAnimationFrame(() => { bgEl.style.opacity = '1'; });
+		}
+		$('a-follow').textContent = d.followed ? '已关注' : '关注';
+		$('a-follow').classList.toggle('on', !!d.followed);
+		$('a-sort').textContent = artistOrder === 'time' ? '时间' : '热度';
+		renderArtistList();
+		setHint('');
+	} catch (e) {
+		$('a-meta').textContent = '加载失败';
+		setErr('歌手页加载失败：' + (e && e.message ? e.message : e));
+	} finally {
+		// 只有最后一次请求才收遮罩，否则连点时会提前关掉
+		if (seq === aPageSeq && load) load.style.display = 'none';
+	}
+}
+
+// 歌手页自己的窗口渲染。
+// 主页那套（renderWindow）是给 #sp-rows 用的，容器和占位块都不同，
+// 这里另起一份：歌手动辄几万首（Beyond 就有四万五），全量渲染直接卡死。
+let aWinFrom = -1, aWinTo = -1, aRowH = 0;
+const AWIN = 50;      // 上下各预渲染 50 行
+
+function renderArtistWindow(force) {
+	const box = $('a-rows');
+	const scroller = $('apage');
+	if (!box) return;
+	const total = viewSongs.length;
+	if (!total) { box.innerHTML = '<div id="empty">这里没有歌</div>'; return; }
+
+	// 行高：第一次渲染时量一下，之后固定用（卡片行高一致）。
+	// 注意不能用 `height + 6 || 72` 兜底：量不到时得到的是 0，表达式变成 6，
+	// 6 像素的行高会让"起始行"算到几万行以外，结果一条都不渲染（列表全空）。
+	if (!aRowH) {
+		const probe = rowCardFor(viewSongs[0], 0, null);
+		box.replaceChildren(probe);
+		const h = probe.getBoundingClientRect().height;
+		aRowH = h > 40 ? h + 6 : 76;
+	}
+	const top = Math.max(0, (scroller ? scroller.scrollTop : 0) - (($('a-list').offsetTop || 0)));
+	const first = Math.floor(top / aRowH);
+	// from 也要夹住：滚到末尾时 first 可能等于 total
+	const from = Math.min(Math.max(0, first - AWIN), Math.max(0, total - 1));
+	const to = Math.min(total, Math.max(from + 1, first + AWIN * 2));
+	if (!force && from === aWinFrom && to === aWinTo) return;
+	aWinFrom = from; aWinTo = to;
+
+	const playing = curId ? { id: curId } : null;
+	const frag = document.createDocumentFragment();
+	for (let i = from; i < to; i++) frag.appendChild(rowCardFor(viewSongs[i], i, playing));
+	if (box.replaceChildren) box.replaceChildren(frag);
+	else { box.innerHTML = ''; box.appendChild(frag); }
+	$('a-top').style.height = (from * aRowH) + 'px';
+	$('a-bot').style.height = ((total - to) * aRowH) + 'px';
+	// 到底了：既没有下一页，也已经渲染到最后一行
+	const end = $('a-end');
+	if (end) end.style.display = (artistMore || to < total) ? 'none' : 'block';
+}
+
+// 兼容旧调用点
+function renderArtistList() {
+	aWinFrom = aWinTo = -1;
+	renderArtistWindow(true);
+}
+
+/* ---------- 歌手页：专辑 tab ---------- */
+// 专辑只按发行时间倒序（接口只给这一种），所以这里没有排序切换。
+let aTab = 'songs';        // songs | albums
+let albumList = [], albumMore = 0, albumTotal = 0, albumSeq = 0, albumLoading = false;
+
+function paintArtistTabs() {
+	$('a-tab-songs').classList.toggle('on', aTab === 'songs');
+	$('a-tab-albums').classList.toggle('on', aTab === 'albums');
+	// 排序按钮只对歌曲有意义
+	$('a-sort').style.display = aTab === 'songs' ? '' : 'none';
+	$('a-list').style.display = aTab === 'songs' ? '' : 'none';
+	$('a-albums').style.display = aTab === 'albums' ? '' : 'none';
+}
+
+function albumYear(ms) {
+	if (!ms) return '';
+	return String(new Date(ms).getFullYear());
+}
+
+function renderAlbumGrid() {
+	const box = $('a-albums');
+	if (!box) return;
+	box.innerHTML = '';
+	if (!albumList.length) {
+		box.innerHTML = '<div id="empty" style="grid-column:1/-1">这里没有专辑</div>';
+		return;
+	}
+	albumList.forEach((al) => {
+		const card = document.createElement('div');
+		card.className = 'aalb';
+		const cov = document.createElement('div');
+		cov.className = 'cov';
+		if (al.pic) cov.style.backgroundImage = 'url("' + al.pic + '")';
+		const nm = document.createElement('div');
+		nm.className = 'nm'; nm.textContent = al.name;
+		const mt = document.createElement('div');
+		mt.className = 'mt';
+		mt.textContent = [albumYear(al.pub), al.size ? al.size + ' 首' : ''].filter(Boolean).join(' · ');
+		card.appendChild(cov); card.appendChild(nm); card.appendChild(mt);
+		card.onclick = () => {
+			// 歌手页是 z-index:18 的全屏浮层，不先收起来的话，
+			// openAlbum 虽然换了主页面内容，用户看到的还是被盖住的歌手页，
+			// 表现就是"点专辑没反应"。
+			hideAnim($('apage'), 'closing', 150);
+			openAlbum(al.id, true);
+		};
+		box.appendChild(card);
+	});
+}
+
+async function loadAlbums() {
+	if (!aPageId) return;
+	const seq = ++albumSeq;
+	albumLoading = true;
+	const spin = $('a-load');
+	if (spin) spin.style.display = 'flex';
+	try {
+		const d = await e5.api('/albums?id=' + aPageId + '&offset=0&limit=100');
+		if (seq !== albumSeq) return;
+		if (!d || !d.ok) throw new Error((d && d.error) || '专辑加载失败');
+		albumList = d.albums || [];
+		albumMore = d.more ? 1 : 0;
+		albumTotal = d.total || albumList.length;
+		renderAlbumGrid();
+		setHint('专辑 ' + (albumTotal || albumList.length) + ' 张');
+	} catch (e) {
+		setErr('专辑加载失败：' + (e && e.message ? e.message : e));
+	} finally {
+		if (seq === albumSeq) {
+			albumLoading = false;
+			const sp = $('a-load');
+			if (sp) sp.style.display = 'none';
+		}
+	}
+}
+
+$('a-tab-songs').onclick = () => {
+	if (aTab === 'songs') return;
+	aTab = 'songs';
+	paintArtistTabs();
+	renderArtistList();
+};
+$('a-tab-albums').onclick = () => {
+	if (aTab === 'albums') return;
+	aTab = 'albums';
+	paintArtistTabs();
+	if (!albumList.length) loadAlbums();
+	else renderAlbumGrid();
+};
+
+$('a-back').onclick = () => { hideAnim($('apage'), 'closing', 150); };
+
+// 歌手页滚到底加载下一页。
+// 注意监听的是 #apage 自己，不是 window —— 它是 position:fixed 的独立滚动容器，
+// 滚它不会触发 window 的 scroll 事件。
+$('apage').addEventListener('scroll', () => {
+	if ($('apage').hidden) return;
+	renderArtistWindow(false);
+	const ap = $('apage');
+	const rest = ap.scrollHeight - ap.scrollTop - ap.clientHeight;
+	if (!artistMore || artistLoading) return;
+	if (rest > 400) return;
+	loadMoreList();
+}, { passive: true });
+let aPageBusy = false;
+$('a-sort').onclick = async () => {
+	// 请求要一两秒，不拦着的话用户会连点，最后一下是什么就停在哪 ——
+	// 点两下正好回到原点，看起来就像"根本没反应"。
+	if (aPageBusy) return;
+	aPageBusy = true;
+	artistOrder = artistOrder === 'hot' ? 'time' : 'hot';
+	$('a-sort').textContent = '…';
+	await loadArtistPage();
+	$('a-sort').textContent = artistOrder === 'time' ? '时间' : '热度';
+	aPageBusy = false;
+};
+$('a-follow').onclick = async () => {
+	if (!aPageId) return;
+	const on = $('a-follow').classList.contains('on') ? 0 : 1;
+	$('a-follow').disabled = true;
+	try {
+		const d = await e5.api('/sub?kind=artist&id=' + aPageId + '&on=' + on);
+		if (!d || !d.ok) throw new Error((d && d.error) || '操作失败');
+		$('a-follow').classList.toggle('on', !!on);
+		$('a-follow').textContent = on ? '已关注' : '关注';
+		setHint(on ? '已关注' : '已取消关注');
+	} catch (e) { setErr(e.message || '操作失败'); }
+	finally { $('a-follow').disabled = false; }
+};
+
+
+function paintArtistHint() {
+	if (!viewSrc || viewSrc.kind !== 'artist') return;
+	setHint('歌手 · ' + artistName + ' · 已加载 ' + viewSongs.length +
+		(artistTotal ? ' / ' + artistTotal : '') + ' 首' + (artistMore ? '（下拉继续）' : ''));
+}
+
+// 歌手动辄上千首，翻到列表底部就再拉一页（后端会把已加载的页记下来，
+// 自动续播按同一份顺序算下一首）
+// 歌单和歌手页一样：滑到底就再要一页。歌单动辄几千首，一次全展开要十几秒，
+// 而且用户根本看不到后面 —— 点开哪个就先给一页。
+async function loadMoreList() {
+	if (artistLoading || !artistMore) return;
+	if (!viewSrc) return;
+	const kind = viewSrc.kind;
+	if (kind !== 'artist' && kind !== 'playlist' && kind !== 'liked') return;
+	artistLoading = true;
+	const spin = $('a-load');
+	if (spin && $('apage') && !$('apage').hidden) spin.style.display = 'flex';
+	try {
+		const url = kind === 'artist'
+			? '/artist?id=' + viewSrc.sid + '&offset=' + viewSongs.length +
+				'&limit=100&order=time'
+			: kind === 'liked'
+				? '/liked?offset=' + viewSongs.length + '&limit=50'
+				: '/playlist?id=' + viewSrc.sid + '&offset=' + viewSongs.length + '&limit=200';
+		const d = await e5.api(url);
+		if (!d || !d.ok) throw new Error((d && d.error) || '加载失败');
+		viewSongs = viewSongs.concat(d.songs || []);
+		// liked 也吃 more：后端 plPage 会告诉还有没有下一页
+		artistMore = (d.more ? 1 : 0);
+		if (d.count) artistTotal = d.count;
+		else if (d.total) artistTotal = d.total;
+		// 只是变长了：就地更新窗口和底部占位，别整表重建。
+		// 歌手页是全量渲染的（就一百首一页），它自己重画；主页才走窗口逻辑。
+		const ap = $('apage');
+		if (ap && !ap.hidden) renderArtistList();
+		else renderWindow(document.documentElement.scrollTop || 0, true);
+		if (kind === 'artist') paintArtistHint();
+		else setHint(listName + ' · ' + viewSongs.length +
+			(artistTotal > viewSongs.length ? ' / ' + artistTotal : '') + ' 首');
+	} catch (e) {
+		artistMore = 0;
+		if (kind === 'artist') paintArtistHint();
+	} finally {
+		artistLoading = false;
+		const spin2 = $('a-load');
+		if (spin2) spin2.style.display = 'none';
+	}
+}
+
+window.addEventListener('scroll', () => {
+	if (winRaf) return;
+	winRaf = requestAnimationFrame(() => {
+		winRaf = 0;
+		// 歌手页是全屏浮层，它自己的滚动跟主页列表没关系。
+		// 不挡的话，歌手页滚到底会把 loadMoreList 触发起来，
+		// 拿歌手数据往主页列表里塞，之后就滑不动了。
+		const ap = $('apage');
+		if (ap && !ap.hidden) return;
+		const doc = document.documentElement;
+		const top = doc.scrollTop || window.scrollY || 0;
+		renderWindow(top, false);                 // 滚到哪就换哪一段，老的直接丢掉
+		if (doc.scrollHeight - top - window.innerHeight < 600) loadMoreList();
+	});
+}, { passive: true });
+
+// 歌手页是和列表不同的"层级"：这里把分类行换成返回按钮
+/* ---------- 子页的收藏按钮 ---------- */
+let subTarget = null, subOn = 0;
+
+function paintFavBtn() {
+	const b = $('favbtn');
+	if (!subTarget) { b.hidden = true; return; }
+	b.hidden = false;
+	b.textContent = subOn ? '已收藏' : '收藏';
+}
+
+// 打开子页时调：先按未收藏显示，再去问后端真实状态
+function setSubTarget(kind, id) {
+	subTarget = (kind && id) ? { kind: kind, id: id } : null;
+	subOn = 0;
+	paintFavBtn();
+	if (!subTarget) return;
+	const want = { kind: kind, id: String(id) };
+	e5.api('/substate?kind=' + kind + '&id=' + id).then((d) => {
+		if (!subTarget || subTarget.kind !== want.kind || String(subTarget.id) !== want.id) return;
+		if (d && d.ok) { subOn = d.on ? 1 : 0; paintFavBtn(); }
+	}).catch(() => {});
+}
+
+$('favbtn').onclick = async () => {
+	if (!subTarget) return;
+	const t = subTarget, want = subOn ? 0 : 1;
+	$('favbtn').disabled = true;
+	try {
+		const d = await e5.api('/sub?kind=' + t.kind + '&id=' + t.id + '&on=' + want);
+		if (!d || !d.ok) throw new Error((d && d.error) || '操作失败');
+		if (subTarget !== t) return;
+		subOn = want;
+		paintFavBtn();
+		setHint(want ? '已收藏' : '已取消收藏');
+	} catch (e) {
+		setErr(e.message || '操作失败');
+	} finally {
+		$('favbtn').disabled = false;
+	}
+};
+
+function paintNav() {
+	paintModeChrome();
+	// 子页（歌手、歌单）都藏掉顶部分类，换成返回按钮 —— 进了歌单还摆着
+	// "每日推荐/我喜欢的"这些分类没意义，位置该让给封面和简介。
+	const inArtist = !!(viewSrc && viewSrc.kind === 'artist');
+	const inSub = inArtist || !!(viewSrc &&
+		(viewSrc.kind === 'playlist' || viewSrc.kind === 'album' || viewSrc.kind === 'programs'));
+	$('back').hidden = !inSub;
+	$('tabs').hidden = inSub;
+	$('account').hidden = inSub;         // 子页用不上账号，藏起来
+	$('fm').hidden = inSub;
+	$('favseg').hidden = inSub || curTab !== 'fav';
+	if (!inSub) subTarget = null;      // 离开子页就把收藏按钮收掉
+	paintFavBtn();
+}
+
+function paintSort() { paintNav(); }
+
+
+// 等分类页渲染完再把这个入口滚到视野中间（渲染是异步的，只能轮询等它出现）
+function revealColl(id) {
+	let tries = 0;
+	const tick = () => {
+		const el = document.querySelector('[data-coll-id="' + id + '"]');
+		if (el) {
+			const top = el.getBoundingClientRect().top + (window.scrollY || 0);
+			window.scrollTo(0, Math.max(0, top - innerHeight * 0.28));
+			return;
+		}
+		if (tries++ < 60) setTimeout(tick, 50);
+	};
+	tick();
+}
+
+function goBackList() {
+	// 先退界面、再补数据：头部和歌单行立刻清掉，分类栏立刻回来。
+	// 以前是等新列表加载完才 renderSongs()，那期间歌单的封面/名称/简介一直挂着，
+	// 看着像是"退出了还在歌单里"。
+	viewHead = null;
+	const st = backState;
+	backState = null;
+	viewSongs = [];
+	viewSrc = st ? (st.src || null) : null;
+	artistMore = 0;
+	window.scrollTo(0, 0);
+	renderHead();                     // 头部立刻消失（关键：别挂在加载过程里）
+	paintNav();                       // 分类栏立刻回来、返回按钮收掉
+	loadingAt = 0;                    // 别让 renderSongs 的"最少显示加载中"延迟拖住
+	const cb = collBack;
+	collBack = null;
+	if (cb) {
+		// 从歌手页点进来的专辑：回去重新打开那位歌手，并停在专辑 tab
+		if (cb.artist) {
+			openArtistPage(cb.artist).then(() => {
+				aTab = 'albums';
+				paintArtistTabs();
+				if (albumList.length) renderAlbumGrid();
+				else loadAlbums();
+			});
+			return;
+		}
+		const b = tabBtns[cb.tab];
+		document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === b));
+		if (collSnapshot && collSnapshot.tab === cb.tab) {
+			// 有快照：同步重建整页，立刻停在入口处，连加载都不用
+			renderCollections(collSnapshot.sections);
+			setHint(TABS.find((t) => t.id === cb.tab)?.label || '');
+			paintNav();
+			revealColl(cb.id);
+			return;
+		}
+		listMsg('加载中…', true);
+		selectTab(cb.tab);
+		revealColl(cb.id);
+		return;
+	}
+	if (!st) { selectTab('daily'); return; }
+	const b = tabBtns[st.tab];
+	document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === b));
+	if (st.songs && st.songs.length) {
+		// 有快照就直接还原，连"加载中"都不用等
+		viewSongs = st.songs.slice();
+		renderSongs();
+		setHint(st.hint || '');
+	} else {
+		listMsg('加载中…', true);
+		selectTab(st.tab || 'daily');
+	}
+}
+
+$('back').onclick = goBackList;
+
+// 返回键/手势：先把本页的层级一层层收掉，收无可收才让宿主关应用。
+// SDK 的规则是 backFn 没返回 true 就发 {e5:'exit'} —— 这页之前压根没注册 onBack，
+// 于是任何一次返回事件（包括滑动时输入设备顺手报上来的）都会把整个应用关掉，
+// 表现就是"滑一下闪退"。
+if (e5.onBack) e5.onBack(() => {
+	if (!$('ssheet').hidden) { closeSongSheet(); return true; }
+	if (!$('plpick').hidden) { hideAnim($('plpick'), 'closing', 160); return true; }
+	if (!$('queue').hidden) { closeQueue(); return true; }
+	if ($('pick') && !$('pick').hidden) { closePick(); return true; }
+	if (backState) { goBackList(); return true; }
+	return false;
+});
+
+$('now-like').onclick = toggleLike;
+$('now-djlike').onclick = async () => {
+	if (!curPid) return;
+	const on = djLiked(curPid) ? 0 : 1;
+	$('now-djlike').disabled = true;
+	try {
+		const d = await e5.api('/program/like?id=' + curPid + '&on=' + on);
+		if (!d || !d.ok) throw new Error((d && d.error) || '操作失败');
+		setDjLiked(curPid, on);
+		paintLike();
+		setHint(on ? '已点赞这集' : '已取消点赞');
+	} catch (e) {
+		setErr(e.message || '操作失败');
+	} finally {
+		$('now-djlike').disabled = false;
+	}
+};
+$('now-dislike').onclick = dropCurrent;
+// 歌手名在 .meta 里，.meta 的点击是"切歌词页"，这里得挡住冒泡
+$('now-sub').onclick = (e) => { e.stopPropagation(); openPick(); };
+$('p-close').onclick = closePick;
+$('pick').onclick = (e) => { if (e.target === $('pick')) closePick(); };
+
+/* ---------- 播放列表入口 ---------- */
+
+$('q-open').onclick = openQueue;
+$('now-queue').onclick = openQueue;
+$('q-close').onclick = closeQueue;
+$('now-mode').onclick = () => {
+	const before = playMode;
+	cycleMode();
+	if (playMode !== before && playMode !== 'radio') toast(modeLabel());
+};
+
+$('queue').onclick = (e) => { if (e.target === $('queue')) closeQueue(); };
+
+/* ---------- 主题 ---------- */
+
+// 明暗和强调色跟着信息屏走：后端读 /etc/config/e5-infoscreen 的 ui_theme / ui_accent
+async function applyTheme() {
+	try {
+		const d = await e5.api('/theme');
+		const light = d && d.theme === 'light';
+		document.body.dataset.theme = light ? 'light' : 'dark';
+		document.body.dataset.accent = (d && d.accent) || 'teal';
+		document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+		// 给跳板页 index.html 用：它等不及这个接口，只能同步读缓存来决定底色，
+		// 不然浅色模式下进应用会先闪一下深色。
+		try {
+			localStorage.setItem('netease-theme', light ? 'light' : 'dark');
+			localStorage.setItem('netease-accent', (d && d.accent) || 'teal');
+		} catch (e) {}
+		applyPalette(palRaw);
+	} catch (e) { /* 读不到就用默认深色 */ }
+}
+
+/* ---------- 登录 ---------- */
+
+let qrKey = null, qrTimer = null;
+
+async function loadMe() {
+	try {
+		const d = await e5.api('/login/me');
+		me = (d && d.logged) ? d : null;
+	} catch (e) { me = null; }
+	const b = $('account');
+	if (me && me.avatar) {
+		b.innerHTML = '<img alt="" src="' + me.avatar + '">';
+		b.classList.add('pic');
+		b.classList.remove('on');
+		b.title = (me.nickname || '') + (me.vip ? ' ·VIP' : '');
+	} else if (me) {
+		b.innerHTML = '';
+		b.textContent = (me.nickname || '已登录') + (me.vip ? ' ·VIP' : '');
+		b.classList.add('on');
+		b.classList.remove('pic');
+	} else {
+		b.innerHTML = '';
+		b.textContent = '登录';
+		b.classList.remove('on');
+		b.classList.remove('pic');
+	}
+}
+
+function stopPoll() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null; } }
+
+function closeLogin() {
+	stopPoll();
+	// 清内容要等淡出播完再清：边淡边清的话，白底二维码会露出来闪一下，
+	// 晚上看着像闪光灯。所以塞进 hideAnim 的回调里。
+	hideAnim($('login-mask'), 'closing', 150, function () {
+		$('qr').classList.remove('pic');
+		$('qr').innerHTML = '';
+		qrKey = null;
+	});
+}
+
+function startPoll() {
+	stopPoll();
+	qrTimer = setInterval(async () => {
+		if (!qrKey || $('login-mask').hidden) return;
+		try {
+			const d = await e5.api('/login/check?key=' + encodeURIComponent(qrKey));
+			if (!d || !d.ok) return;
+			if (d.code === 803) {
+				stopPoll();
+				$('qr-status').textContent = '登录成功' + (d.nickname ? '：' + d.nickname : '');
+				await loadMe();
+				setTimeout(() => { closeLogin(); selectTab('daily'); }, 900);
+			} else if (d.code === 802) {
+				$('qr-status').textContent = '已扫码，请在手机上点「确认登录」';
+			} else if (d.code === 800) {
+				stopPoll();
+				$('qr-status').textContent = '二维码已过期，关掉重开一次';
+			}
+		} catch (e) { /* 网络抖动，下一轮再试 */ }
+	}, 2000);
+}
+
+async function openLogin() {
+	showAnim($('login-mask'));
+	$('qr').innerHTML = '';
+	qrKey = null;
+	stopPoll();
+
+	$('login-title').textContent = me ? '账号' : '扫码登录';
+	if (me) {
+		$('qr').classList.add('pic');
+		$('qr').innerHTML = me.avatar
+			? '<img alt="" src="' + me.avatar + '">'
+			: '';
+		$('qr-status').textContent = '已登录：' + (me.nickname || '') + (me.vip ? ' · VIP' : '');
+		$('login-action').hidden = false;
+		$('login-action').textContent = '退出登录';
+		return;
+	}
+	$('login-action').hidden = true;
+	$('qr').classList.remove('pic');
+	$('qr-status').textContent = '正在获取二维码…';
+	try {
+		const d = await e5.api('/login/qr');
+		if (!d || !d.ok) throw new Error((d && d.error) || '取二维码失败');
+		qrKey = d.key;
+		if (d.svg && d.svg.trim()) {
+			$('qr').innerHTML = d.svg;
+			$('qr-status').textContent = '打开网易云音乐 App，用「扫一扫」';
+		} else {
+			// 机器上没有 qrencode：退化成给链接，别让人对着一个空框发呆
+			$('qr').innerHTML = '';
+			$('qr-status').textContent = '这台机器没装 qrencode，请在浏览器打开：' + (d.url || '');
+		}
+		startPoll();
+	} catch (e) {
+		$('qr-status').textContent = '获取二维码失败：' + (e && e.message ? e.message : e);
+	}
+}
+
+$('account').onclick = openLogin;
+$('cache-clear').onclick = async () => {
+	$('cache-clear').disabled = true;
+	$('qr-status').textContent = '正在清理…';
+	try {
+		const d = await e5.api('/clearcache');
+		if (!d || !d.ok) throw new Error((d && d.error) || '清理失败');
+		const mb = (d.freed / 1024).toFixed(1);
+		$('qr-status').textContent = '已清理 ' + mb + ' MB';
+		toast('清理了 ' + mb + ' MB 缓存');
+	} catch (e) {
+		$('qr-status').textContent = e.message || '清理失败';
+	}
+	$('cache-clear').disabled = false;
+};
+$('login-close').onclick = closeLogin;
+$('login-action').onclick = async () => {
+	if (!me) return;
+	try {
+		await e5.api('/stop');          // 停止播放：放的是上一个账号的歌
+		await e5.api('/logout');
+		clearAll();                     // 队列/列表/界面上的数据一起清
+		await loadMe();
+		$('qr-status').textContent = '已退出登录';
+		$('login-action').hidden = true;
+		$('qr').classList.remove('pic');
+		$('qr').innerHTML = '';
+	} catch (e) { $('qr-status').textContent = '退出失败'; }
+};
+
+// 退出登录/换号：把界面上属于上一个账号的东西全部清掉，别让它留在列表和队列里
+function clearAll() {
+	try {
+		localStorage.removeItem(QUEUE_KEY);
+		localStorage.removeItem(IDX_KEY);
+	} catch (e) { /* ignore */ }
+	songs = [];
+	viewSongs = [];
+	index = -1;
+	listSrc = null;
+	viewSrc = null;
+	artistMore = 0;
+	artistTotal = 0;
+	artistName = '';
+	backState = null;
+	curId = 0;
+	curPid = 0;
+	curCover = '';
+	curDuration = 0;
+	posMs = 0;
+	playing = false;
+	paused = false;
+	likedState = 0;
+	likedFor = 0;
+	lyricLines = null;
+	lyricId = 0;
+	me = null;
+	$('n-title').textContent = '';
+	$('n-sub').textContent = '';
+	$('cover').style.backgroundImage = '';
+	$('lyr-inner').innerHTML = '';
+	$('now').hidden = true;
+	$('now').classList.remove('lyrics-mode');
+	setToggleIcon(false);
+	paintLike();
+	renderSongs();
+	setHint('已退出登录');
+	paintNav();
+	renderProgress();
+}
+
+/* ---------- 启动 ---------- */
+
+const tabBtns = {};
+TABS.forEach((t) => {
+	const b = document.createElement('button');
+	b.className = 'tab';
+	b.textContent = t.label;
+	b.onclick = () => loadTab(t, b);
+	tabBtns[t.id] = b;
+	$('tabs').appendChild(b);
+});
+
+function selectTab(id) {
+	const b = tabBtns[id];
+	if (b) loadTab(TABS.find((x) => x.id === id), b);
+}
+
+// 主页左右滑动切分类。手势落在列表上（分类条本身是横向滚动区，不抢它）
+function swipeTab(dir) {
+	if (viewSrc && viewSrc.kind === 'artist') return;   // 歌手页没有分类可切
+
+	// 收藏页：专辑/歌手/播客 三段当成子页，先在自己内部滑，滑到头才切相邻分类。
+	// 往左滑(dir=1)前进：专辑→歌手→播客；往右滑(dir=-1)后退，顺序相反。
+	if (curTab === 'fav' && !viewSrc) {
+		const kinds = [ 'album', 'artist', 'podcast' ];
+		const at = kinds.indexOf(favKind);
+		const to = at + dir;
+		if (to >= 0 && to < kinds.length) {
+			favKind = kinds[to];
+			listDir = dir > 0 ? 1 : -1;
+			renderFav();
+			return;
+		}
+	}
+
+	const ids = TABS.map((t) => t.id);
+	let cur = ids.indexOf(curTab);
+	if (cur < 0) cur = 0;
+	const next = (cur + dir + ids.length) % ids.length;
+	const b = tabBtns[ids[next]];
+	if (!b) return;
+	// 滑进收藏页：从后面的分类退回来落在末段（播客），从前面进来到首段（专辑）。
+	// 点击标签进来不受影响，那边固定从专辑开始。
+	if (ids[next] === 'fav') favKind = dir > 0 ? 'album' : 'podcast';
+	const list = $('list');
+	console.log('[netease] swipe dir=' + dir + ' -> ' + ids[next]);
+	// 记下方向：数据回来时 renderSongs 还会再走一次 showListAnim，
+	// 不记的话那次永远是"从右进"，往右滑就会看到反方向的进场。
+	listDir = dir > 0 ? 1 : -1;
+	// 用 Web Animations 直接跑，比加类名再靠重排触发更可靠（类名那套在这台
+	// WPE 上时灵时不灵：innerHTML 换掉加载态时动画会被吃掉）
+	if (list.animate) {
+		list.animate(
+			[{ transform: 'translateX(' + (dir > 0 ? 40 : -40) + 'px)', opacity: 0.35 },
+			 { transform: 'none', opacity: 1 }],
+			{ duration: 240, easing: 'cubic-bezier(.22,.8,.28,1)' }
+		);
+	} else {
+		list.classList.remove('slide-l', 'slide-r');
+		void list.offsetWidth;
+		list.classList.add(dir > 0 ? 'slide-l' : 'slide-r');
+		setTimeout(() => list.classList.remove('slide-l', 'slide-r'), 240);
+	}
+	loadTab(TABS.find((t) => t.id === ids[next]), b);
+}
+
+// 自己接管列表的竖向滚动 + 横向切页。
+// 这台 WPE 在 iframe 里做原生滚动时，滚动量会明显大于手指位移（实测 dY=17 → dS=1028），
+// 所以干脆 preventDefault 掉原生滚动，用手指位移自己算，保证 1:1。
+// 在插件里操作不会重置宿主的 idle 计时器 —— 宿主 60 秒没动静就熄屏，熄屏时会
+// closeApp（看起来像"用着用着应用退了 + 锁屏"）。
+// 宿主的 resetIdle() 只在收到它自己的按键/触摸时调用，插件这边只能借 keep-awake
+// 消息顺手触发它：on:true 会让 resetIdle 跳过（因为 appKeepAwake 为真），
+// 紧接着 on:false 又会重新起一个 60 秒的定时器 —— 净效果等于"重置空闲计时"。
+function postKa(on) {
+	try { parent.postMessage({ e5: 'keep-awake', on: on }, '*'); } catch (e) { /* ignore */ }
+}
+
+let kaLast = 0;
+function touchAwake() {
+	const now = Date.now();
+	if (now - kaLast < 500) return;      // 连续触摸别刷太频繁
+	kaLast = now;
+	postKa(true);
+	postKa(false);
+}
+
+['touchstart', 'mousedown', 'wheel'].forEach((t) =>
+	document.addEventListener(t, touchAwake, { passive: true }));
+window.addEventListener('pagehide', () => postKa(false));
+
+// 滚动/切页结束后浏览器还会补一个 click（落在刚划过的那个卡片上），
+// 不挡的话滑一下松手就播了。这里在捕获阶段吞掉。
+let suppressClickUntil = 0;
+document.addEventListener('click', (e) => {
+	if (performance.now() < suppressClickUntil) {
+		e.preventDefault();
+		e.stopPropagation();
+	}
+}, true);
+
+(function bindGestures() {
+	const list = $('list');
+	const doc = document.documentElement;
+	let x0 = 0, y0 = 0, scroll0 = 0, dx = 0, mode = 0;   // mode: 0 未定 1 滚动 2 切页
+	let prevY = 0, prevT = 0, vy = 0, raf = 0;
+	let moved = false;              // 这次手势有没有滚动/切页（有的话别当成点击）
+	// 手指位移(CSS px) -> 滚动距离的系数。原生滚动在这台机器上约等于 1.25 倍，
+	// 1:1 会让内容"跟不上手"，所以按宿主缩放补偿；觉得快/慢就调这一个数。
+	const SCROLL_K = 1.25;
+
+	const stopMomentum = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } };
+
+	list.addEventListener('touchstart', (e) => {
+		if (e.touches.length !== 1) return;
+		stopMomentum();
+		const t = e.touches[0];
+		x0 = t.clientX; y0 = t.clientY; dx = 0; mode = 0;
+		scroll0 = doc.scrollTop || window.scrollY || 0;
+		prevY = t.clientY; prevT = performance.now(); vy = 0;
+		moved = false;
+	}, { passive: true });
+
+	list.addEventListener('touchmove', (e) => {
+		const t = e.touches[0];
+		if (!t) return;
+		const ndx = t.clientX - x0;
+		const ndy = t.clientY - y0;
+		dx = ndx;
+		if (mode === 0) {
+			// 切页要求"几乎纯横向"：横向超过 24px 且至少是纵向的 2.5 倍，
+			// 否则一律当成滚动，避免随便一划就换页
+			if (Math.abs(ndx) > 24 && Math.abs(ndx) > Math.abs(ndy) * 2.5) { mode = 2; return; }
+			if (Math.abs(ndy) > 4) mode = 1; else return;
+		}
+		if (mode !== 1) return;
+		moved = true;
+		if (e.cancelable) e.preventDefault();       // 别让浏览器自己滚
+		const now = performance.now();
+		const dt = now - prevT;
+		if (dt > 0) vy = (t.clientY - prevY) / dt;  // px/ms
+		prevY = t.clientY; prevT = now;
+		window.scrollTo(0, scroll0 - ndy * SCROLL_K);
+	}, { passive: false });
+
+	const finish = () => {
+		if (mode === 1 && Math.abs(vy) > 0.25) {
+			// 松手后的惯性：按最后的速度滑一小段，速度衰减到 0.02 停
+			let v = vy * 16 * SCROLL_K;
+			const step = () => {
+				v *= 0.96;
+				if (Math.abs(v) < 0.6) { raf = 0; return; }
+				const before = doc.scrollTop;
+				window.scrollTo(0, before - v);
+				if (doc.scrollTop === before) { raf = 0; return; }   // 到顶/到底
+				raf = requestAnimationFrame(step);
+			};
+			raf = requestAnimationFrame(step);
+		}
+		mode = 0;
+	};
+
+	list.addEventListener('touchend', () => {
+		const swipe = Math.abs(dx) >= 90 && mode === 2;
+		if (moved || swipe) suppressClickUntil = performance.now() + 450;
+		finish();
+		if (swipe) swipeTab(dx < 0 ? 1 : -1);
+	});
+	list.addEventListener('touchcancel', () => { finish(); });
+})();
+
+// 播放进程在后端，页面退出重进时它还在放 —— 进来先问一次后端，把界面接回去
+async function restoreState() {
+	try {
+		const d = await e5.api('/status');
+		if (!d || !d.ok || !d.active) return false;
+		// 队列也一起接回来，否则底栏能显示歌、上一首/下一首却没反应
+		const q = loadQueue();
+		if (q) {
+			songs = q.songs;
+			// 只恢复**播放队列**，不把队列当成"正在浏览的列表"。
+			// 以前这里会把 viewSongs 换成队列内容，于是每次打开应用都停在
+			// 上次那个歌单里 —— 用户想看的通常是首页，队列在播放列表里随时能看。
+			listSrc = q.src || null;
+			if (listSrc && listSrc.kind === 'artist') { artistMore = 1; artistTotal = 0; artistName = ''; paintSort(); }
+			index = songs.findIndex((s) => String(s.id) === String(d.id));
+			if (index < 0) index = parseInt(localStorage.getItem(IDX_KEY) || '0', 10) || 0;
+			if (index >= songs.length) index = 0;
+			// 队列来源能唯一对上分类的，直接用来源纠正（旧数据里 tab 记错成 daily）
+			const SKIND = { programs: 'podcasts', liked: 'liked', daily: 'daily' };
+			const tabId = (q.src && SKIND[q.src.kind]) || q.tab;
+			const b = tabBtns[tabId];
+			document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === b));
+			setHint(q.label || '');
+			paintNav();
+			syncPlan();   // 后端续播要用，重进应用后得重新告诉它一遍
+		}
+		adoptSong(d);
+		startTimer();
+		return true;
+	} catch (e) { return false; }
+}
+
+(async () => {
+	await applyTheme();
+	// 一致性校正：老版本切走心动模式时没保存队列，会出现
+	// "mode=loop 但 queue.src=radio" 的错位，这里纠正过来
+	(function () {
+		try {
+			const q = loadQueue();
+			if (!q || !q.src) return;
+			if (q.src.kind === 'radio' && playMode !== 'radio') {
+				q.src = srcBeforeRadio || null;
+				listSrc = q.src;
+				localStorage.setItem('netease.queue', JSON.stringify(q));
+			} else if (q.src.kind === 'radio') {
+				listSrc = q.src;      // 确实是心动模式，把来源接回来
+			}
+		} catch (e) { /* ignore */ }
+	})();
+	paintMode();
+	await loadMe();
+	const resumed = await restoreState();
+	// 不管有没有接着上次的播放，进来先给首页（每日推荐）——
+	// 播放队列已经恢复了，底栏和播放列表里都在，不该占着浏览区。
+	// 没登录时也别急着弹扫码，先给个空列表提示。
+	if (me) selectTab('daily');
+	else { renderSongs(); setHint('未登录 · 点右上角登录'); }
+	// 轮询无条件启动：restoreState 在后端换歌的空档里会拿到 playing:false 直接返回，
+	// 那条路径里没启动计时器，页面就永远不知道后来在放什么（封面/标题一直是空的）。
+	startTimer();
+	pollStatus();   // 立刻对一次账：进应用就能切到正确的"歌曲/单集"模式
+	console.log('[netease] ready, e5=' + (window.e5 ? e5.version : 'none') +
+		' logged=' + (me ? me.nickname : 'no') + ' resumed=' + resumed +
+		' view=' + innerWidth + 'x' + innerHeight +
+		' q=' + location.search + ' ver=' + APP_VER);
+})();
+</script>
+</body>
+</html>

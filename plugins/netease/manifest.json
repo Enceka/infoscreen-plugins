@@ -1,0 +1,15 @@
+{
+	"id": "netease",
+	"api_version": 2,
+	"version": "1.1",
+	"name": {
+		"zh": "网易云音乐",
+		"en": "NetEase Music"
+	},
+	"description": {
+		"zh": "播放你喜欢的音乐",
+		"en": "Play your favorite music"
+	},
+	"entry": "index.html",
+	"order": 35
+}
