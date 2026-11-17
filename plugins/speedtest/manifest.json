@@ -1,0 +1,43 @@
+{
+	"id": "speedtest",
+	"api_version": 2,
+	"version": "1.0",
+	"name": {
+		"zh": "网速测试",
+		"en": "Speed test"
+	},
+	"description": {
+		"zh": "下载、上传和延迟",
+		"en": "Download, upload and ping"
+	},
+	"entry": "index.html",
+	"order": 15,
+	"settings": [
+		{
+			"id": "backend",
+			"uci": "e5-plugin-speedtest.settings.backend",
+			"type": "choice",
+			"default": "global",
+			"label": {
+				"zh": "测速源",
+				"en": "Test source"
+			},
+			"options": [
+				{
+					"value": "global",
+					"label": {
+						"zh": "全球网测",
+						"en": "CAICT"
+					}
+				},
+				{
+					"value": "speedtest",
+					"label": {
+						"zh": "speedtest.net",
+						"en": "speedtest.net"
+					}
+				}
+			]
+		}
+	]
+}

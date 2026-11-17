@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>SIM 卡应用</title>
+<link rel="stylesheet" href="stk.css?v=3">
+</head>
+<body>
+<nav id="sim-tabs" class="sim-tabs sim-selector" role="tablist" aria-label="SIM" hidden>
+ <button id="sim-tab-0" class="sim-tab" data-slot="0" data-sim="0" data-focus="tab:0" type="button" role="tab" aria-selected="true" aria-pressed="true">SIM 1</button>
+ <button id="sim-tab-1" class="sim-tab" data-slot="1" data-sim="1" data-focus="tab:1" type="button" role="tab" aria-selected="false" aria-pressed="false">SIM 2</button>
+</nav>
+<main id="stk-body" class="stk-body" aria-live="polite"></main>
+<script src="/sdk/e5.js"></script>
+<script src="stk.js?v=3"></script>
+</body>
+</html>
