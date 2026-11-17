@@ -1053,9 +1053,10 @@ return function(ctx) {
 			for (let id in chunk) { let x = byId[id]; if (x != null) push(ordered, x); }
 			songs = tracksEapi(ordered);
 		}
-		// 详情页要用封面：https 地址在 web 进程里加载不了，换成 cache/c 下的本地路径
+		// 详情页要用封面：https 地址在 web 进程里加载不了，换成 cache/c 下的本地路径。
+		// 只在第一页取：翻页时封面早就有了，再查一遍是白跑一次 ls。
 		let cover = '';
-		if (length(meta.cover ?? '') > 8) {
+		if (from == 0 && length(meta.cover ?? '') > 8) {
 			let one = [{ id: sid, url: meta.cover }];
 			fillCovers(one, 'pl');
 			cover = one[0].cover ?? '';
@@ -1268,7 +1269,7 @@ return function(ctx) {
 		return c;
 	}
 
-	function listSongs(kind, sid, order) {
+	function listSongs(kind, sid, order, offset, limit) {
 		let ck = readSession();
 		if (kind == 'playlist') {
 			if (sid <= 0) return { ok: false, songs: [], error: '歌单 id 无效' };
@@ -1377,7 +1378,12 @@ return function(ctx) {
 			// "我喜欢的音乐": 先查 specialType=5 的那个歌单 id，再按页取
 			let pid = likedPlaylistId();
 			if (pid <= 0) return { ok: false, songs: [], error: '还没有登录' };
-			let page = plPage(pid, 0, 200);
+			// 一次只取一页。这个列表只下歌单自己的一张封面（下面的 plPage 干的），
+			// 不算歌曲封面 —— 紧凑行根本不显示。慢的是 song/detail 批量查详情：
+			// 一次 200 个 id 比 50 个多四倍的数据要解析。默认 50，滚到底再要下一页。
+			let lim = int(limit ?? 50);
+			if (lim <= 0 || lim > 200) lim = 50;
+			let page = plPage(pid, int(offset ?? 0), lim);
 			if (page == null) return { ok: true, songs: [], total: 0 };
 			return { ok: true, songs: page.songs, total: page.total, more: page.more ? 1 : 0 };
 		}
@@ -2119,7 +2125,9 @@ return function(ctx) {
 		// 顺序也不一定对, 跟 App 里看到的对不上。
 		// 正确做法是找到"我喜欢的音乐"那个特殊歌单(specialType=5), 直接读它的详情。
 		'GET /liked': function(req) {
-			return listSongs('liked', int((req.query ? req.query.uid : 0) ?? 0));
+			return listSongs('liked', int((req.query ? req.query.uid : 0) ?? 0), '',
+				int((req.query ? req.query.offset : 0) ?? 0),
+				int((req.query ? req.query.limit : 50) ?? 50));
 		},
 
 		// 我的歌单 + 收藏的歌单（subscribed=true 的是收藏的）

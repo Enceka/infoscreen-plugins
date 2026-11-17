@@ -1319,15 +1319,20 @@ async function loadTab(tab, btn) {
 			else setErr('');
 			setHint('每日推荐 · ' + viewSongs.length + ' 首');
 		} else if (tab.id === 'liked') {
-			const d = await e5.api('/liked?uid=' + (me ? me.uid : 0));
+			// 一批 50 首：一次拉全（853 首）会让封面下载把页面卡住，
+			// 滚到底再要下一页。
+			const d = await e5.api('/liked?uid=' + (me ? me.uid : 0) + '&offset=0&limit=50');
 			if (seq !== viewSeq) return;
 			if (d && d.need_login) return needLogin();
 			viewSongs = (d && d.songs) || [];
 			viewSrc = { kind: 'liked' };
+			// 不设这两个的话，滑到底不会继续加载（artistMore 还留着上个列表的值）
+			artistMore = (d && d.more) ? 1 : 0;
+			artistTotal = (d && d.total) || viewSongs.length;
 			renderSongs();
 			setErr(d && d.ok ? '' : ((d && d.error) || '我喜欢的加载失败，稍后再试'));
-			setHint('我喜欢的音乐' +
-				(d && d.total ? ' · 共 ' + d.total + ' 首（显示前 ' + viewSongs.length + '）' : ''));
+			setHint('我喜欢的音乐' + (artistTotal
+				? ' · ' + viewSongs.length + ' / ' + artistTotal + ' 首' : ''));
 		} else if (tab.id === 'reco') {
 			const d = await e5.api('/reco');
 			if (seq !== viewSeq) return;
@@ -3303,7 +3308,7 @@ async function loadMoreList() {
 	if (artistLoading || !artistMore) return;
 	if (!viewSrc) return;
 	const kind = viewSrc.kind;
-	if (kind !== 'artist' && kind !== 'playlist') return;
+	if (kind !== 'artist' && kind !== 'playlist' && kind !== 'liked') return;
 	artistLoading = true;
 	const spin = $('a-load');
 	if (spin && $('apage') && !$('apage').hidden) spin.style.display = 'flex';
@@ -3311,11 +3316,14 @@ async function loadMoreList() {
 		const url = kind === 'artist'
 			? '/artist?id=' + viewSrc.sid + '&offset=' + viewSongs.length +
 				'&limit=100&order=time'
-			: '/playlist?id=' + viewSrc.sid + '&offset=' + viewSongs.length + '&limit=200';
+			: kind === 'liked'
+				? '/liked?offset=' + viewSongs.length + '&limit=50'
+				: '/playlist?id=' + viewSrc.sid + '&offset=' + viewSongs.length + '&limit=200';
 		const d = await e5.api(url);
 		if (!d || !d.ok) throw new Error((d && d.error) || '加载失败');
 		viewSongs = viewSongs.concat(d.songs || []);
-		artistMore = (kind === 'artist') ? (d.more ? 1 : 0) : 0;
+		// liked 也吃 more：后端 plPage 会告诉还有没有下一页
+		artistMore = (d.more ? 1 : 0);
 		if (d.count) artistTotal = d.count;
 		else if (d.total) artistTotal = d.total;
 		// 只是变长了：就地更新窗口和底部占位，别整表重建。
