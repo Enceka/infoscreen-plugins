@@ -75,24 +75,26 @@ function kvGet(obj, k, def) {
 	return replace(v, /\\n/g, '\n');
 }
 
-// 定位。同一个 IP（39.144.196.111）三家给的答案：
-//   ip-api.com     广东广州   23.13,113.27   ← 差三千多公里，中国移动的库没跟上
-//   ipinfo.io      新疆乌鲁木齐 43.80,87.60  ← 只到运营商注册的大区中心
-//   myip.ipip.net  新疆昌吉回族自治州          ← 最准，但是纯文本没坐标
-// 所以：先用 myip 拿中文地名（准），再拿这个名字去小米的 city/search 换
+
+// myip 拿中文地名（准），再拿这个名字去小米的 city/search 换
 // locationKey 和坐标（小米那边坐标是准的，天气也是按它取的）。
 function locate() {
-	let txt = httpGet('http://myip.ipip.net', 8);
-	let m = match(txt ?? '', /来自于[：:]\s*([^\n\r]+)/);
+	// 走 /json 而不是纯文本：纯文本里直接切出来的中文会变成「æ–°ç–†」这种乱码
+	// （ctx.sh() 拿到的是字节串），只有 json() 会按 UTF-8 正确解码。
+	//   {"data":{"location":["中国","云南省","大理白族自治州","","移动"]}}
+	let d0 = safeJson(httpGet('http://myip.ipip.net/json', 8));
 	let cityName = '';
 	let region = '';
-	if (m != null) {
-		// "中国 新疆 昌吉回族自治州  移动" -> 去掉国家和运营商
-		let seg = trim(replace(m[1], /移动|联通|电信|铁通|广电|教育网/g, ''));
+	if (d0 != null && d0.data != null && d0.data.location != null) {
+		let loc = d0.data.location;
 		let parts = [];
-		for (let x in split(seg, ' ')) {
-			x = trim(x);
-			if (length(x) > 1) push(parts, x);
+		for (let i = 0; i < length(loc); i++) {
+			let x = trim(loc[i] ?? '');
+			if (length(x) < 1) continue;
+			// 首段是「中国」，运营商那段也要去掉，否则城市会被取成省名
+			if (x == '中国' || x == '中华人民共和国') continue;
+			if (match(x, /^(移动|联通|电信|铁通|广电|教育网|长城宽带)$/) != null) continue;
+			push(parts, x);
 		}
 		if (length(parts) >= 2) { region = parts[0]; cityName = parts[1]; }
 		else if (length(parts) == 1) cityName = parts[0];
@@ -108,14 +110,12 @@ function locate() {
 		}
 		return null;
 	}
-	// "昌吉回族自治州" -> "昌吉"：小米那边按简称能搜到
+	// "大理白族自治州" -> "大理"：小米那边按简称能搜到
 	let short = replace(cityName,
 		/回族自治州|蒙古自治州|哈萨克自治州|柯尔克孜自治州|傣族景颇族自治州|藏族自治州|彝族自治州|苗族侗族自治州|布依族苗族自治州|土家族苗族自治州|白族自治州|傣族自治州|傈僳族自治州|哈尼族彝族自治州|壮族苗族自治州|地区|自治州|自治区|省|市$/g, '');
 	if (length(short) < 1) short = cityName;
 	return { city: cityName, region: region, lat: '', lon: '', shortName: short };
 }
-
-// 经纬度 -> locationKey（精确到区县）
 function cityByGeo(lat, lon) {
 	let url = `${BASE}/wtr-v3/location/city/geo?latitude=${lat}&longitude=${lon}` +
 		`&locale=zh_cn&appKey=${APP_KEY}&sign=${SIGN}`;
