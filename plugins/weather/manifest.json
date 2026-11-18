@@ -1,0 +1,15 @@
+{
+	"id": "weather",
+	"api_version": 2,
+	"version": "4.7",
+	"name": {
+		"zh": "天气",
+		"en": "Weather"
+	},
+	"description": {
+		"zh": "看看天气",
+		"en": "Weather at a glance"
+	},
+	"entry": "index.html",
+	"order": 30
+}
