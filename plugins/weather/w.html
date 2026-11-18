@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>天气</title>
+<style>
+	:root {
+		--bg: #0e1418;
+		--fg: #e8eef2;
+		--dim: #8b9aa6;
+		--card: rgba(255,255,255,.055);
+		--card-2: rgba(255,255,255,.09);
+		--line: rgba(255,255,255,.10);
+		--accent: #5aa9e6;
+	}
+	@media (prefers-color-scheme: light) {
+		:root {
+			--bg: #eef4f8;
+			--fg: #16202a;
+			--dim: #64737f;
+			--card: rgba(0,0,0,.045);
+			--card-2: rgba(0,0,0,.075);
+			--line: rgba(0,0,0,.10);
+			--accent: #2b7bbd;
+		}
+	}
+	* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+	html, body {
+		margin: 0; padding: 0; height: 100%;
+		/* --wx-bg 由 paintBg() 按天气和日夜改 */
+		background: var(--wx-bg, #0e1418); color: var(--fg);
+		transition: background-color .6s ease-out;
+		font-family: -apple-system, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+		overflow-x: hidden;
+	}
+	body {
+		padding-bottom: 20px;
+		/* 背景色随天气变，文字对比度没法只用颜色保证；
+		   --ts 由 paintBg() 按深浅给一层阴影兜底 */
+		text-shadow: var(--ts, 0 1px 2px rgba(0,0,0,.2));
+	}
+
+	/* 背景动画层：必须 fixed，否则 canvas 作为 inline 元素会占文档流，
+	   把整个页面的内容推到下面去（表现就是"要下滑才能看到天气"）。 */
+	#fx {
+		position: fixed; inset: 0; z-index: 0;
+		width: 100%; height: 100%;
+		pointer-events: none;
+		display: none;
+	}
+	#app { position: relative; z-index: 1; }
+
+
+	/* ---------- 顶部 ---------- */
+	.top {
+		padding: 14px 16px 6px;
+		display: flex; align-items: flex-start; justify-content: space-between;
+	}
+	.place { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+	.place .sub { font-size: 11px; font-weight: 400; color: var(--dim); margin-left: 6px; }
+	.stamp { font-size: 10px; color: var(--dim); margin-top: 3px; }
+	.btn-city {
+		background: var(--card-2); border: 0; color: var(--fg);
+		font-size: 11px; padding: 5px 11px; border-radius: 999px;
+		font-family: inherit; cursor: pointer;
+	}
+	.btn-city:active { opacity: .6; }
+
+	/* ---------- 当前 ---------- */
+	/* 照 GeometricWeather 的 container_main_header：
+	   大温度 + 「天气, 体感」紧跟 + 第三行 AQI，左对齐、贴底。
+	   它不放天气图标 —— 背景动画已经把天气说明了。 */
+	.hero { padding: 0 16px 16px; text-align: left; }
+	.hero .temp {
+		font-size: 84px; font-weight: 200; line-height: .95;
+		letter-spacing: -4px;
+	}
+	.hero .temp .deg { font-size: 34px; vertical-align: top; margin-left: 2px; letter-spacing: 0; }
+	/* 负边距贴住温度：原版 marginTop=-4dp 也是这个意思 */
+	.hero .cond {
+		font-size: 16px; font-weight: 600; letter-spacing: .2px;
+		margin-top: -4px; margin-left: 2px;
+	}
+	.hero .sub {
+		font-size: 13px; color: var(--dim);
+		margin-top: 4px; margin-left: 2px;
+	}
+
+	/* ---------- 通用卡片 ---------- */
+	/* 卡片固定浅底 + 固定深字。原版就是这么做的：天气色只负责背景，
+	   内容全在 Material 3 卡片里，所以从来不用担心文字对比度。
+	   我们之前把文字直接压在天气色上，才有了调色的麻烦。 */
+	.card {
+		margin: 0 12px 10px;
+		background: var(--card-bg, #FDFCFF);
+		color: var(--card-fg, #1B1B1D);
+		border-radius: 14px;
+		padding: 11px 13px;
+		text-shadow: none;
+		box-shadow: 0 1px 3px rgba(0,0,0,.12);
+	}
+	.card h3 {
+		margin: 0 0 9px; font-size: 11px; font-weight: 600;
+		color: var(--card-sub, #2b3742); letter-spacing: .5px; text-transform: uppercase;
+	}
+
+
+
+	/* ---------- 逐小时 ---------- */
+	.hours { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+	.hours::-webkit-scrollbar { height: 0; }
+	.hour { flex: 0 0 auto; width: 44px; text-align: center; }
+	.hour .t { font-size: 10px; color: var(--card-sub, #2b3742); }
+	.hour .i { width: 26px; height: 26px; margin: 5px auto; }
+	.hour .v { font-size: 13px; font-weight: 500; }
+
+	/* ---------- 空气 ---------- */
+	.aqi-row { display: flex; align-items: baseline; gap: 9px; }
+	.aqi-num { font-size: 30px; font-weight: 300; line-height: 1; }
+	.aqi-lv { font-size: 13px; font-weight: 600; }
+	.aqi-sub { font-size: 10px; color: var(--card-sub, #2b3742); margin-top: 6px; }
+
+	/* ---------- 每日 ---------- */
+	.day {
+		display: flex; align-items: center; gap: 10px;
+		padding: 7px 0; border-top: 1px solid var(--card-line, rgba(0,0,0,.07));
+	}
+	.day:first-of-type { border-top: 0; }
+	.day .d { flex: 0 0 40px; font-size: 12px; }
+	.day .d .w { display: block; font-size: 9px; color: var(--card-sub, #2b3742); }
+	.day .i { width: 24px; height: 24px; flex: 0 0 auto; }
+	.day .c { flex: 1 1 auto; font-size: 11px; color: var(--card-sub, #2b3742);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.day .p { flex: 0 0 auto; font-size: 10px; color: var(--accent); }
+	.day .r { flex: 0 0 62px; text-align: right; font-size: 12px; }
+	.day .r .lo { color: var(--card-sub, #2b3742); }
+
+	/* ---------- 详情网格 ---------- */
+	.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; }
+	.gi .k { font-size: 10px; color: var(--card-sub, #2b3742); }
+	.gi .v { font-size: 15px; font-weight: 500; margin-top: 2px; }
+
+	/* ---------- 状态 ---------- */
+
+
+
+
+
+
+
+
+
+
+/* ---------- 城市选择 ---------- */
+	.sheet {
+		position: fixed; left: 0; right: 0; bottom: 0; top: 0;
+		background: rgba(0,0,0,.58);
+		display: none; z-index: 20;
+	}
+	.sheet.on { display: block; }
+	.sheet-box {
+		position: absolute; left: 0; right: 0; bottom: 0;
+		max-height: 82%;
+		/* 面板不跟天气背景走：晴天时 --fg 会变成深色，
+		   深字压在深底上就看不见了。这里固定深底浅字。 */
+		background: #121a21;
+		color: #e8eef2;
+		border-radius: 16px 16px 0 0;
+		display: flex; flex-direction: column;
+		box-shadow: 0 -6px 24px rgba(0,0,0,.35);
+	}
+	.sheet-head {
+		display: flex; align-items: center; gap: 8px;
+		padding: 12px 14px 8px;
+		border-bottom: 1px solid rgba(255,255,255,.10);
+	}
+	.sheet-head .t { font-size: 13px; font-weight: 600; flex: 1 1 auto; color: #e8eef2; }
+	.sheet-head button {
+		background: none; border: 0; color: var(--accent);
+		font-size: 12px; font-family: inherit; padding: 4px 6px;
+	}
+	.sheet-body { overflow-y: auto; padding: 8px 12px 16px; }
+	.sheet-body::-webkit-scrollbar { width: 0; }
+	.chip-wrap { display: flex; flex-wrap: wrap; gap: 7px; padding: 4px 0 10px; }
+	.chip2 {
+		background: rgba(255,255,255,.10); border: 0; color: #e8eef2;
+		font-size: 12px; padding: 7px 13px; border-radius: 999px;
+		font-family: inherit;
+	}
+	.chip2:active { background: rgba(255,255,255,.22); }
+	.msg { padding: 60px 24px; text-align: center; color: var(--dim); font-size: 13px; line-height: 1.7; }
+	.msg .big { font-size: 15px; color: var(--fg); margin-bottom: 8px; }
+	.retry {
+		margin-top: 16px; background: var(--card-2); border: 0; color: var(--fg);
+		font-size: 12px; padding: 8px 20px; border-radius: 999px;
+		font-family: inherit;
+	}
+
+	/* ---------- 下拉刷新（仿 Android SwipeRefreshLayout） ---------- */
+	/* 拖动阶段完全由 JS 逐帧驱动（弧长/位移），不用 CSS animation ——
+	   否则按住往上滑的时候没法倒放，阶段切换还会跳。
+	   只有"松手后刷新中"才交给 CSS 转。 */
+	#pull {
+		position: fixed; left: 50%; top: 0; z-index: 30;
+		width: 40px; height: 40px; margin-left: -20px;
+		border-radius: 50%;
+		background: #ffffff;
+		box-shadow: 0 2px 8px rgba(0,0,0,.24);
+		opacity: 0;
+		transform: translateY(-70px);
+		pointer-events: none;
+		will-change: transform, opacity;
+	}
+	#pull.settle { transition: transform .26s cubic-bezier(.34,1.32,.64,1), opacity .2s ease-out; }
+	#pull svg { display: block; width: 100%; height: 100%; }
+	#pull circle {
+		fill: none;
+		stroke: var(--accent, #85ebcd);
+		stroke-width: 3;
+		stroke-linecap: round;
+		/* 不要在这里写 stroke-dasharray —— SVG 的 presentation attribute
+		   优先级低于 CSS 规则，写了就会把 JS 每帧 setAttribute 的值全盖掉，
+		   结果弧长永远是 1px，看着就是个点。初始值由 pullSet(0) 给。 */
+	}
+	/* 旋转和弧长都不用 CSS 动画 —— 这台机器的 WebKit 对 SVG 元素的
+	   CSS transform（尤其 transform-origin）支持不对，圆会绕着左上角转，
+	   看起来一直往右偏移。改成 JS 每帧写 SVG 原生 transform 属性。 */
+
+	/* ---------- 主题强调色 ---------- */
+	/* 值直接抄宿主的 /www/mobile.css —— 宿主只支持这几种：
+	     :root                            薄荷绿（默认）
+	     [data-accent=blue]               浅蓝
+	     [data-accent=violet]             浅紫
+	   再加上浅色主题那一套。两边一致，插件和应用本身才不会撞色。 */
+	:root { --accent: #85ebcd; }
+	body[data-accent=blue]   { --accent: #89c6ff; }
+	body[data-accent=violet] { --accent: #c3adff; }
+	body[data-theme=light] { --accent: #086c57; }
+	body[data-theme=light][data-accent=blue]   { --accent: #195ca0; }
+	body[data-theme=light][data-accent=violet] { --accent: #7041a5; }
+</style>
+</head>
+<body>
+
+<canvas id="fx"></canvas>
+<div id="pull">
+	<svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="14"/></g></svg>
+</div>
+<div id="app"><div class="msg">正在获取天气…</div></div>
+
+<div class="sheet" id="sheet" onclick="if(event.target===this)closeCity()">
+	<div class="sheet-box">
+		<div class="sheet-head">
+			<button id="sheet-back" onclick="cityBack()" style="display:none">‹ 返回</button>
+			<div class="t" id="sheet-title">选择城市</div>
+			<button onclick="closeCity()">关闭</button>
+		</div>
+		<div class="sheet-body" id="sheet-body"></div>
+	</div>
+</div>
+
+<!-- 宿主的 SDK：提供 e5.api()。不引这一行 window.e5 就是 undefined -->
+<script>
+	window.addEventListener('error', function (ev) {
+		console.log('[wx] ERR ' + (ev.message || '') + ' @' + (ev.filename || '') + ':' + (ev.lineno || 0));
+	});
+</script>
+<script src="/sdk/e5.js"></script>
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+// 后端接口走宿主注入的 e5.api()：它自己拼 /api/plugins/<id>/ 前缀。
+// 直接 fetch('/api/plugins/weather/...') 在这台设备上拿不到（路由前缀不一样）。
+// 静态文件（cities.json）另走 fetch，那个是 uhttpd 直接给的。
+const API = (p) => {
+	if (window.e5 && typeof e5.api === 'function') return e5.api(p);
+	return fetch('/api/plugins/weather/' + p).then((r) => r.json());
+};
+
+
+
+let lastData = null;
+
+/* ---------- 天气图标 ---------- */
+// 小米的天气代码。0 晴 / 1 多云 / 2 阴 / 3 阵雨 / 4 雷阵雨 / 7 小雨 / 8 中雨 / 9 大雨
+// 13 阵雪 / 14 小雪 / 15 中雪 / 17 暴雪 / 18 雾 / 20 沙尘
+function iconOf(code, night) {
+	const sun = night
+		? '<path d="M20.5 14.2a8.5 8.5 0 1 1-9.7-9.7 7 7 0 0 0 9.7 9.7z" fill="#cfd8e3"/>'
+		: '<circle cx="12" cy="12" r="4.6" fill="#f5c451"/><g stroke="#f5c451" stroke-width="1.9" stroke-linecap="round"><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.4 5.4l1.8 1.8M16.8 16.8l1.8 1.8M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8"/></g>';
+	const cloud = '<path d="M7.4 17.5h9.2a3.9 3.9 0 0 0 .4-7.8 5.6 5.6 0 0 0-10.7 1.4 3.3 3.3 0 0 0 1.1 6.4z" fill="#b9c6d2"/>';
+	const rain = '<path d="M8.3 17l-1 2.4M12 17l-1 2.4M15.7 17l-1 2.4" stroke="#6cb0e8" stroke-width="1.9" stroke-linecap="round"/>';
+	const snow = '<g fill="#dbe7f2"><circle cx="8.3" cy="18.4" r="1.1"/><circle cx="12" cy="18.4" r="1.1"/><circle cx="15.7" cy="18.4" r="1.1"/></g>';
+	const bolt = '<path d="M12.6 13.4l-2.4 4.2h2.2l-1.1 3 3.6-4.6h-2.2l1.4-2.6z" fill="#f5c451"/>';
+	const fog = '<g stroke="#b9c6d2" stroke-width="1.9" stroke-linecap="round"><path d="M6 11h12M4.6 14.6h13.4M7 18.2h10"/></g>';
+
+	let body = sun;
+	if (code === 0) body = sun;
+	else if (code === 1) body = sun + '<g transform="translate(5,3) scale(.78)">' + cloud + '</g>';
+	else if (code === 2) body = cloud;
+	else if (code === 3 || code === 7 || code === 21) body = cloud + rain;
+	else if (code === 8 || code === 22) body = cloud + rain + rain;
+	else if (code === 9 || code === 10 || code === 11 || code === 12) body = cloud + rain + rain;
+	else if (code === 4 || code === 5) body = cloud + bolt + rain;
+	else if (code === 6 || code === 19) body = cloud + rain;
+	else if (code === 13 || code === 14 || code === 26) body = cloud + snow;
+	else if (code === 15 || code === 16 || code === 17 || code === 27 || code === 28) body = cloud + snow + snow;
+	else if (code === 18 || code === 32 || code === 33 || code === 37 || code === 38) body = fog;
+	else if (code === 20 || code === 29 || code === 30 || code === 31) body = cloud + '<path d="M6 16h12" stroke="#c8a76a" stroke-width="2" stroke-linecap="round"/>';
+	else if (code === 34 || code === 35 || code === 36) body = fog;
+
+	return '<svg viewBox="0 0 24 24" width="100%" height="100%">' + body + '</svg>';
+}
+
+// 天气文字
+const TEXT = {
+	0: '晴', 1: '多云', 2: '阴', 3: '阵雨', 4: '雷阵雨', 5: '雷阵雨伴冰雹',
+	6: '雨夹雪', 7: '小雨', 8: '中雨', 9: '大雨', 10: '暴雨', 11: '大暴雨',
+	12: '特大暴雨', 13: '阵雪', 14: '小雪', 15: '中雪', 16: '大雪', 17: '暴雪',
+	18: '雾', 19: '冻雨', 20: '沙尘暴', 21: '小到中雨', 22: '中到大雨',
+	23: '大到暴雨', 24: '暴雨到大暴雨', 25: '大暴雨到特大暴雨', 26: '小到中雪',
+	27: '中到大雪', 28: '大到暴雪', 29: '浮尘', 30: '扬沙', 31: '强沙尘暴',
+	32: '浓雾', 33: '强浓雾', 34: '中度霾', 35: '重度霾', 36: '严重霾',
+	37: '大雾', 38: '特强浓雾'
+};
+function wtext(code) {
+	const n = parseInt(code, 10);
+	return TEXT[n] || '—';
+}
+
+// AQI 等级
+function aqiInfo(v) {
+	const n = parseInt(v, 10);
+	if (!(n >= 0)) return { lv: '—', color: 'var(--dim)' };
+	if (n <= 50) return { lv: '优', color: '#5fbf6f' };
+	if (n <= 100) return { lv: '良', color: '#c9c94f' };
+	if (n <= 150) return { lv: '轻度污染', color: '#e2953f' };
+	if (n <= 200) return { lv: '中度污染', color: '#d9664a' };
+	if (n <= 300) return { lv: '重度污染', color: '#a8503f' };
+	return { lv: '严重污染', color: '#7d3a5c' };
+}
+
+/* ---------- 时间 ---------- */
+function fmtTime(ms) {
+	const d = new Date(ms);
+	return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function fmtDate(d) {
+	return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+function dayLabel(idx, iso) {
+	if (idx === 0) return '今天';
+	if (idx === 1) return '明天';
+	if (idx === 2) return '后天';
+	const d = iso ? new Date(iso) : null;
+	return d ? WEEK[d.getDay()] : ('第' + (idx + 1) + '天');
+}
+
+/* ---------- 渲染 ---------- */
+
+/* ---------- 天气背景动画 ---------- */
+// 逐行移植 GeometricWeather（LGPL-3.0）的 Canvas 动画器：
+//   theme/weatherView/materialWeatherView/implementor/
+//     SunImplementor   晴：三层方块群各自旋转
+//     RainImplementor  雨：75 滴圆角矩形，整层倾斜 8°
+//     SnowImplementor  雪：圆形从上往下，左右摆
+//     CloudImplementor 云：几条横向漂移的模糊带
+// 思路和参数照搬，代码是 JS 重写的。Android Canvas 和 HTML5 Canvas 的
+// translate / rotate / drawRect 语义一致，所以基本能一一对上。
+let fxCanvas = null, fxCtx = null, fxImpl = null, fxRaf = 0, fxLast = 0;
+
+function fxStart(code, night) {
+	if (!fxCanvas) {
+		fxCanvas = document.getElementById('fx');
+		fxCtx = fxCanvas ? fxCanvas.getContext('2d') : null;
+	}
+	if (!fxCanvas || !fxCtx) return;
+	const impl = fxMake(code, night);
+	if (impl == null) {
+		fxCanvas.style.display = 'none';
+		fxImpl = null;
+		if (fxRaf) { cancelAnimationFrame(fxRaf); fxRaf = 0; }
+		return;
+	}
+	fxCanvas.style.display = 'block';
+	fxImpl = impl;
+	fxResize();
+	if (!fxRaf) {
+		fxLast = performance.now();
+		fxLoop(fxLast);
+	}
+}
+
+function fxResize() {
+	if (!fxCanvas) return;
+	// 至少 2 倍采样：这块屏物理分辨率不高，1x 下 1~2px 的细线和小圆点
+	// 会明显有硬边（锯齿）。2x 相当于超采样，边缘柔和很多。
+	const dpr = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
+	const w = window.innerWidth, h = window.innerHeight;
+	fxCanvas.width = Math.round(w * dpr);
+	fxCanvas.height = Math.round(h * dpr);
+	fxCanvas.style.width = w + 'px';
+	fxCanvas.style.height = h + 'px';
+	if (fxCtx) fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	if (fxImpl && fxImpl.resize) fxImpl.resize(w, h);
+}
+
+function fxLoop(t) {
+	fxRaf = requestAnimationFrame(fxLoop);
+	if (!fxImpl || !fxCtx) return;
+	let interval = t - fxLast;
+	fxLast = t;
+	// 切后台回来时 interval 会很大，直接跳到当前位置，别让它一次走几万毫秒
+	if (interval > 100) interval = 16;
+	const w = window.innerWidth, h = window.innerHeight;
+	fxCtx.clearRect(0, 0, w, h);
+	fxImpl.update(interval);
+	fxImpl.draw(fxCtx, w, h);
+}
+
+function fxMake(code, night) {
+	const n = parseInt(code, 10);
+	if (n === 0) return night ? newFxMeteor() : newFxSun();
+	if (n === 4) return newFxRain(90, night, true);    // 雷阵雨
+	if (n === 5) return newFxHail(night);              // 雷阵雨伴冰雹
+	if ([3, 6, 7, 8, 9, 10, 11, 12, 19, 21, 22, 23, 24, 25].indexOf(n) >= 0)
+		return newFxRain(75, night, false);
+	if ([13, 14, 15, 16, 17, 26, 27, 28].indexOf(n) >= 0) return newFxSnow(40, night);
+	if (n === 20 || n === 29 || n === 30 || n === 31) return newFxWind(night);
+	if (n === 1) return newFxCloud('cloudy', night);
+	if (n === 2) return newFxCloud('cloud', night);
+	if ([18, 32, 33, 37, 38].indexOf(n) >= 0) return newFxCloud('fog', night);
+	if ([34, 35, 36].indexOf(n) >= 0) return newFxCloud('haze', night);
+	return null;
+}
+
+/* ---- 晴：SunImplementor ---- */
+// 三层正方形群，各层以 3/4/5 秒转 90°（角度取模 90，因为正方形转 90° 是自身）。
+// 每个正方形转 22.5° 画 4 个 → 4 个方块交叠出 8 个尖。
+function newFxSun() {
+	let unit = [0, 0, 0];
+	const angles = [0, 0, 0];
+	const ALPHA = [0.40, 0.16, 0.08];
+
+	function layout(w) {
+		unit[0] = 0.5 * 0.47 * w;
+		unit[1] = 1.7794 * unit[0];
+		unit[2] = 3.0594 * unit[0];
+	}
+	layout(window.innerWidth);
+
+	return {
+		resize(w) { layout(w); },
+		update(ms) {
+			for (let i = 0; i < 3; i++)
+				angles[i] = (angles[i] + (90 / (3000 + 1000 * i)) * ms) % 90;
+		},
+		draw(ctx, w) {
+			ctx.save();
+			// 中心在画布右上角外侧一
+			ctx.translate(w, 0.0333 * w);
+			ctx.fillStyle = 'rgb(253,84,17)';
+			for (let i = 0; i < 3; i++) {
+				ctx.globalAlpha = ALPHA[i];
+				ctx.save();
+				ctx.rotate(angles[i] * Math.PI / 180);
+				for (let j = 0; j < 4; j++) {
+					ctx.fillRect(-unit[i], -unit[i], unit[i] * 2, unit[i] * 2);
+					ctx.rotate(22.5 * Math.PI / 180);
+				}
+				ctx.restore();
+			}
+			ctx.restore();
+			ctx.globalAlpha = 1;
+		}
+	};
+}
+
+/* ---- 雨：RainImplementor ---- */
+// 画布用对角线尺寸（canvasSize），雨滴在这个大画布上走，
+// 绘制时再居中裁到视口 —— 原版是为了设备倾斜时不出边，这里保留。
+function newFxRain(count, night, thunder) {
+	let W = 0, H = 0, size = 0;
+	const drops = [];
+	const scales = [0.6, 0.8, 1];
+	const colors = thunder
+		? ['rgb(182,142,82)', 'rgb(108,85,146)', 'rgb(255,255,255)']
+		: (night
+			? ['rgb(182,142,82)', 'rgb(88,92,113)', 'rgb(255,255,255)']
+			: ['rgb(223,179,114)', 'rgb(152,175,222)', 'rgb(255,255,255)']);
+
+	function make(ci, firstTime) {
+		const s = scales[ci];
+		const maxW = 0.006 * size, minW = 0.003 * size;
+		const maxH = maxW * 10, minH = minW * 6;
+		return {
+			x: Math.random() * size,
+			y: firstTime
+				? (Math.random() * (size - maxH) - size)
+				: (-maxH * (1 + 2 * Math.random())),
+			w: minW + Math.random() * (maxW - minW),
+			h: minH + Math.random() * (maxH - minH),
+			speed: size / (1000 * (1.75 + Math.random())) * 5,
+			scale: s,
+			ci: ci,
+			color: colors[ci]
+		};
+	}
+
+	function layout(w, h) {
+		W = w; H = h;
+		size = Math.sqrt(w * w + h * h);
+		drops.length = 0;
+		for (let i = 0; i < count; i++) {
+			// 前 1/3 用近景、后 1/3 用远景 —— 原版就是这么分的
+			drops.push(make(Math.floor(i * 3 / count), true));
+		}
+	}
+	layout(window.innerWidth, window.innerHeight);
+
+	// 闪电：每 3~8 秒闪一次，300ms 内两起两落
+	let thProgress = 0, thDuration = 300, thDelay = 3000 + Math.random() * 5000, thAlpha = 0;
+
+	return {
+		resize(w, h) { layout(w, h); },
+		update(ms) {
+			for (let d of drops) {
+				// rotation3D 固定 0，所以只有垂直下落，速度按 scale^1.5 拉开层次
+				d.y += d.speed * ms * Math.pow(d.scale, 1.5);
+				if (d.y >= size) {
+					const nd = make(d.ci, false);
+					d.x = nd.x; d.y = nd.y; d.w = nd.w; d.h = nd.h; d.speed = nd.speed;
+				}
+			}
+			if (thunder) {
+				thProgress += ms;
+				if (thProgress > thDuration + thDelay) {
+					thProgress = 0;
+					thDelay = 3000 + Math.random() * 5000;
+				}
+				const p = thProgress, dur = thDuration;
+				if (p < dur) {
+					if (p < 0.25 * dur) thAlpha = p / 0.25 / dur;
+					else if (p < 0.5 * dur) thAlpha = 1 - (p - 0.25 * dur) / 0.25 / dur;
+					else if (p < 0.75 * dur) thAlpha = (p - 0.5 * dur) / 0.25 / dur;
+					else thAlpha = 1 - (p - 0.75 * dur) / 0.25 / dur;
+				} else thAlpha = 0;
+			}
+		},
+		draw(ctx, w, h) {
+			const ox = (size - w) * 0.5, oy = (size - h) * 0.5;
+			ctx.save();
+			// 整层绕中心倾斜 8°：雨看着是斜的
+			ctx.translate(w / 2, h / 2);
+			ctx.rotate(8 * Math.PI / 180);
+			ctx.translate(-w / 2, -h / 2);
+			for (let d of drops) {
+				const x = d.x - ox, y = d.y - oy;
+				const ww = d.w * d.scale, hh = d.h * d.scale;
+				if (x < -ww * 2 || x > w + ww * 2 || y < -hh * 2 || y > h + hh * 2) continue;
+				ctx.fillStyle = d.color;
+				ctx.beginPath();
+				// drawRoundRect(rect, w/2, w/2)：圆角半径取宽度一半 = 胶囊形
+				fxRoundRect(ctx, x, y, ww, hh, Math.min(ww / 2, hh / 2));
+				ctx.fill();
+			}
+			ctx.restore();
+			if (thunder && thAlpha > 0.01) {
+				ctx.globalAlpha = thAlpha * 0.66;
+				ctx.fillStyle = 'rgb(81,67,168)';
+				ctx.fillRect(0, 0, w, h);
+				ctx.globalAlpha = 1;
+			}
+		}
+	};
+}
+
+function fxRoundRect(ctx, x, y, w, h, r) {
+	ctx.moveTo(x + r, y);
+	ctx.arcTo(x + w, y, x + w, y + h, r);
+	ctx.arcTo(x + w, y + h, x, y + h, r);
+	ctx.arcTo(x, y + h, x, y, r);
+	ctx.arcTo(x, y, x + w, y, r);
+	ctx.closePath();
+}
+
+/* ---- 雪：SnowImplementor ---- */
+function newFxSnow(count, night) {
+	let W = 0, H = 0;
+	const flakes = [];
+	const color = night ? 'rgb(200,214,235)' : 'rgb(255,255,255)';
+
+	function layout(w, h) {
+		W = w; H = h;
+		flakes.length = 0;
+		for (let i = 0; i < count; i++) {
+			flakes.push({
+				x: Math.random() * w,
+				y: Math.random() * h - h,
+				r: 1.2 + Math.random() * 2.2,
+				vy: 14 + Math.random() * 26,
+				vx: (Math.random() - 0.5) * 10,
+				phase: Math.random() * Math.PI * 2
+			});
+		}
+	}
+	layout(window.innerWidth, window.innerHeight);
+
+	return {
+		resize(w, h) { layout(w, h); },
+		update(ms) {
+			const dt = ms / 1000;
+			for (let f of flakes) {
+				f.y += f.vy * dt;
+				f.phase += dt * 1.6;
+				f.x += Math.sin(f.phase) * 12 * dt + f.vx * dt;
+				if (f.y - f.r > H) {
+					f.y = -f.r * 2;
+					f.x = Math.random() * W;
+				}
+				if (f.x < -6) f.x = W + 6;
+				if (f.x > W + 6) f.x = -6;
+			}
+		},
+		draw(ctx) {
+			ctx.fillStyle = color;
+			for (let f of flakes) {
+				ctx.globalAlpha = 0.55;
+				ctx.beginPath();
+				ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		}
+	};
+}
+
+/* ---- 云 / 阴 / 雾 / 霾：CloudImplementor ---- */
+// 原版不是画轮廓，是拿一堆"巨大的半透明圆"叠在一起 —— 圆与圆交叠处
+// 亮度累加，边缘自然柔和，看上去就是云。
+// 9 个圆（TYPE_CLOUD），坐标都以 viewWidth 为单位；半径在 1.0~1.1 倍之间
+// 缓慢呼吸（周期 9~10.5 秒），alpha 固定 0.3。
+const CLOUD_UNITS = [
+	// [中心x, 中心y, 半径]  ← 都乘 viewWidth
+	[1.0699, 0.3820, 0.4225],
+	[0.4866, 0.3801, 0.3551],
+	[0.0351, 0.3537, 0.4164],
+	[0.8831, 0.2416, 0.2914],
+	[0.4663, 0.2141, 0.2615],
+	[0.1229, 0.2049, 0.2675],
+	[0.9250, 0.1730, 0.3166],
+	[0.4694, 0.1730, 0.3166],
+	[0.0250, 0.1671, 0.3166]
+];
+
+function newFxCloud(kind, night) {
+	let W = 0, H = 0;
+	const clouds = [];
+	const SCALE_RATIO = 1.1;
+
+	// 各天气的云色与透明度（取自原版 cloudColors / cloudAlphas）
+	let palette;
+	if (kind === 'fog') {
+		// 原版 TYPE_FOG：日 #717DA0 紫蓝 alpha 0.1；夜 rgb(85,99,110) 等 alpha 0.4/0.6/0.4
+		palette = night
+			? ['rgb(85,99,110)', 'rgb(91,104,114)', 'rgb(99,113,123)']
+			: ['rgb(113,125,160)', 'rgb(113,125,160)', 'rgb(113,125,160)'];
+	} else if (kind === 'haze') {
+		// 原版 HAZE：日 #AC9D82 土黄 / 夜 rgb(179,158,132)
+		palette = night
+			? ['rgb(179,158,132)', 'rgb(179,158,132)', 'rgb(179,158,132)']
+			: ['rgb(172,157,130)', 'rgb(172,157,130)', 'rgb(172,157,130)'];
+	} else if (kind === 'cloudy') {
+		// 原版 TYPE_CLOUDY：日 rgb(160,179,191) 灰蓝 / 夜 rgb(95,104,108)
+		palette = night
+			? ['rgb(95,104,108)', 'rgb(95,104,108)', 'rgb(95,104,108)']
+			: ['rgb(160,179,191)', 'rgb(160,179,191)', 'rgb(160,179,191)'];
+	} else {
+		// TYPE_CLOUD（阴）：原版构造函数里 switch 只有 CLOUDY / THUNDER，
+		// 没有 TYPE_CLOUD 这一支，cloudColors 会停在 new int[2] 的 {0,0}
+		// —— 也就是完全不画。这里退到 CLOUDY 的灰蓝，比一片空白合理。
+		palette = night
+			? ['rgb(95,104,108)', 'rgb(95,104,108)', 'rgb(95,104,108)']
+			: ['rgb(160,179,191)', 'rgb(160,179,191)', 'rgb(160,179,191)'];
+	}
+	// 原版 cloudAlphas：雾最淡（日间只有 0.1），霾和阴 0.3，多云 0.3
+	let ALPHAS;
+	if (kind === 'fog') ALPHAS = night ? [0.4, 0.6, 0.4] : [0.1, 0.1, 0.1];
+	else ALPHAS = [0.3, 0.3, 0.3];
+	// 原版：FOG/HAZE 那一支用 Cloud[9]，else 那一支（CLOUDY/THUNDER/CLOUD）
+	// 用 Cloud[6]。阴和多云都是 6 个圆。
+	const COUNT = (kind === 'fog' || kind === 'haze') ? 9 : 6;
+
+	function layout(w, h) {
+		W = w; H = h;
+		clouds.length = 0;
+		for (let i = 0; i < COUNT; i++) {
+			const u = CLOUD_UNITS[i];
+			clouds.push({
+				cx: u[0] * w,
+				cy: u[1] * w,
+				r0: u[2] * w,
+				r: u[2] * w,
+				scaleRatio: SCALE_RATIO,
+				color: palette[i < 3 ? 0 : (i < 6 ? 1 : 2)],
+				alpha: ALPHAS[i < 3 ? 0 : (i < 6 ? 1 : 2)],
+				dur: 9000 + (i % 3) * 750,
+				prog: Math.random() * (9000 + (i % 3) * 750)
+			});
+		}
+	}
+	layout(window.innerWidth, window.innerHeight);
+
+	return {
+		resize(w, h) { layout(w, h); },
+		update(ms) {
+			for (let c of clouds) {
+				c.prog = (c.prog + ms) % c.dur;
+				const t = c.prog / c.dur;
+				// 半个周期从 1 涨到 scaleRatio，另外半个周期降回来
+				if (t < 0.5) c.r = c.r0 * (1 + (c.scaleRatio - 1) * (t / 0.5));
+				else c.r = c.r0 * (c.scaleRatio - (c.scaleRatio - 1) * ((t - 0.5) / 0.5));
+			}
+		},
+		draw(ctx) {
+			for (let c of clouds) {
+				ctx.globalAlpha = c.alpha;
+				ctx.fillStyle = c.color;
+				ctx.beginPath();
+				ctx.arc(c.cx, c.cy, c.r, 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		}
+	};
+}
+
+// 窗口尺寸变了（旋转屏幕）要重新布局
+window.addEventListener('resize', () => {
+	if (fxImpl) fxResize();
+});
+
+
+/* ---------- 背景配色 ---------- */
+// 直接抄 MaterialWeatherThemeDelegate.innerGetBackgroundColor 的色表：
+//   晴    日 #FDBC4C  夜 #141C2C（原版夜间用 MeteorShower 的色）
+//   多云  日 #9DAFC1  夜 #263238
+//   阴    日 #00A5D9  夜 #222D43
+//   雨    日 #4297E7  夜 #264E8F
+//   雪    日 #68BAFF  夜 #1A5B92
+//   雷    日 #B296BD  夜 #231739
+//   雾    日 #A3AEC2  夜 #4F5D68
+//   霾    日 #E1C899  夜 #6C5C49
+//   风    日 #EACDA3  夜 #958675
+const WX_COLORS = {
+	clear:  [0xFDBC4C, 0x141C2C],
+	cloudy: [0x9DAFC1, 0x263238],
+	cloud:  [0x00A5D9, 0x222D43],
+	rain:   [0x4297E7, 0x264E8F],
+	snow:   [0x68BAFF, 0x1A5B92],
+	storm:  [0xB296BD, 0x231739],
+	fog:    [0xA3AEC2, 0x4F5D68],
+	haze:   [0xE1C899, 0x6C5C49],
+	wind:   [0xEACDA3, 0x958675]
+};
+
+function hex6(v) {
+	const h = Number(v).toString(16);
+	return '#' + '000000'.substring(h.length) + h;
+}
+
+function wxKind(code, night) {
+	const n = parseInt(code, 10);
+	if (n === 0) return night ? 'clear' : 'clear';
+	if (n === 1) return 'cloudy';
+	if (n === 2) return 'cloud';
+	if ([3, 6, 7, 8, 9, 10, 11, 12, 19, 21, 22, 23, 24, 25].indexOf(n) >= 0) return 'rain';
+	if ([13, 14, 15, 16, 17, 26, 27, 28].indexOf(n) >= 0) return 'snow';
+	if (n === 4 || n === 5) return 'storm';
+	if ([18, 32, 33, 37, 38].indexOf(n) >= 0) return 'fog';
+	if ([34, 35, 36].indexOf(n) >= 0) return 'haze';
+	if ([20, 29, 30, 31].indexOf(n) >= 0) return 'wind';
+	return 'clear';
+}
+
+function paintBg(code, night) {
+	const kind = wxKind(code, night);
+	const pair = WX_COLORS[kind] || WX_COLORS.clear;
+	const c = pair[night ? 1 : 0];
+	document.documentElement.style.setProperty('--wx-bg', hex6(c));
+	// 深色背景用浅字，浅色背景也得用浅字（原版 getHeaderTextColor 恒为白），
+	// 但卡片底色跟着深浅换一下，不然浅背景上白卡片看不出来
+	const dark = isDark(c);
+	document.documentElement.style.setProperty('--card', dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)');
+	document.documentElement.style.setProperty('--card-2', dark ? 'rgba(255,255,255,.11)' : 'rgba(0,0,0,.11)');
+	document.documentElement.style.setProperty('--line', dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.12)');
+	// 文案色：浅背景上用深字才看得清
+	// 文字色只能在深/浅两端二选一，所以都往极端推：
+	//   浅底（扬沙 #EACDA3 亮度 208）用近黑的 #16212b → 最差 4.86:1
+	//   深底（晴夜 #141C2C 亮度 30）用近白的 #d8e4ec → 最好 12:1
+	// 中间亮度的底（雾夜 #4F5D68 亮度 90、雨夜 #264E8F 亮度 73）两头都压不到
+	// 4.5，只能靠 text-shadow 把边缘对比补回来 —— 见下面的 --ts。
+	document.documentElement.style.setProperty('--fg', dark ? '#f2f6fa' : '#0d161e');
+	document.documentElement.style.setProperty('--dim', dark ? '#d8e4ec' : '#16212b');
+	document.documentElement.style.setProperty('--ts',
+		dark ? '0 1px 3px rgba(0,0,0,.45)' : '0 1px 2px rgba(255,255,255,.35)');
+
+	// 卡片跟着**天气的日夜**走，不跟系统主题：夜里深色卡片和深色背景融在一起，
+	// 白天浅色卡片压在亮背景上。色值用原版 colors.xml 的 colorMainCardBackground。
+	document.documentElement.style.setProperty('--card-bg', night ? '#1C1B1F' : '#FDFCFF');
+	document.documentElement.style.setProperty('--card-fg', night ? '#E3E2E6' : '#1B1B1D');
+	document.documentElement.style.setProperty('--card-sub', night ? '#94a5b2' : '#2b3742');
+	document.documentElement.style.setProperty('--card-line',
+		night ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)');
+}
+
+function isDark(color) {
+	const r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
+	// 相对亮度（ITU-R BT.601 的简化权重）
+	return (0.299 * r + 0.587 * g + 0.114 * b) < 150;
+}
+
+
+
+/* ---- 风：WindImplementor ---- */
+// 160 根横条往右飘，整层旋转 -16°。颜色是三种黄（日夜同一套色，
+// 只是夜间 alpha 压到 0.33）。
+function newFxWind(night) {
+	const COLORS = ['rgb(240,200,148)', 'rgb(237,178,100)', 'rgb(209,142,54)'];
+	const SCALES = [0.6, 0.8, 1];
+	let W = 0, H = 0, size = 0;
+	const gusts = [];
+	const baseAlpha = night ? 0.33 : 1;
+
+	function make(ci, firstTime) {
+		const maxH = 0.007 * size, minH = 0.005 * size;
+		const maxW = maxH * 10, minW = minH * 6;
+		return {
+			x: firstTime ? (Math.random() * (size - maxH) - size) : -maxH,
+			y: Math.random() * size,
+			w: minW + Math.random() * (maxW - minW),
+			h: minH + Math.random() * (maxH - minH),
+			speed: size / (1000 * (0.5 + Math.random())) * 6,
+			scale: SCALES[ci],
+			ci: ci,
+			color: COLORS[ci]
+		};
+	}
+
+	function layout(w, h) {
+		W = w; H = h;
+		size = Math.sqrt(w * w + h * h);
+		gusts.length = 0;
+		for (let i = 0; i < 160; i++) gusts.push(make(Math.floor(i * 3 / 160), true));
+	}
+	layout(window.innerWidth, window.innerHeight);
+
+	return {
+		resize(w, h) { layout(w, h); },
+		update(ms) {
+			for (let g of gusts) {
+				// 横向飘，速度按 scale^1.5 分层次
+				g.x += g.speed * ms * Math.pow(g.scale, 1.5);
+				if (g.x >= size) {
+					const n = make(g.ci, false);
+					g.x = n.x; g.y = n.y; g.w = n.w; g.h = n.h; g.speed = n.speed;
+				}
+			}
+		},
+		draw(ctx, w, h) {
+			const ox = (size - w) * 0.5, oy = (size - h) * 0.5;
+			ctx.save();
+			ctx.translate(w / 2, h / 2);
+			ctx.rotate(-16 * Math.PI / 180);
+			ctx.translate(-w / 2, -h / 2);
+			for (let g of gusts) {
+				const x = g.x - ox, y = g.y - oy;
+				const ww = g.w * g.scale, hh = g.h * g.scale;
+				if (x < -ww * 2 || x > w + ww * 2 || y < -hh * 4 || y > h + hh * 4) continue;
+				ctx.globalAlpha = baseAlpha;
+				ctx.fillStyle = g.color;
+				ctx.fillRect(x, y, ww, hh);
+			}
+			ctx.restore();
+			ctx.globalAlpha = 1;
+		}
+	};
+}
+
+/* ---- 冰雹：HailImplementor ---- */
+// 方形冰粒，边落边自转（每颗转速独立）。
+function newFxHail(night) {
+	const COLORS = night
+		? ['rgb(40,102,155)', 'rgb(99,144,182)', 'rgb(255,255,255)']
+		: ['rgb(128,197,255)', 'rgb(185,222,255)', 'rgb(255,255,255)'];
+	const SCALES = [0.6, 0.8, 1];
+	const COUNT = 45;
+	let W = 0, H = 0, size = 0, unit = 0;
+	const gems = [];
+
+	function make(ci, firstTime) {
+		return {
+			cx: Math.random() * size,
+			cy: firstTime ? (Math.random() * (size - unit) - size) : -unit,
+			rot: 360 * Math.random(),
+			rotSpeed: 360 / 500 * Math.random(),
+			speedY: W / 200,
+			speedX: 0.75 * (Math.random() * (W / 200) * (Math.random() < 0.5 ? 1 : -1)),
+			scale: SCALES[ci],
+			ci: ci,
+			color: COLORS[ci]
+		};
+	}
+
+	function layout(w, h) {
+		W = w; H = h;
+		size = Math.sqrt(w * w + h * h);
+		unit = 0.0324 * w * 0.8;
+		gems.length = 0;
+		for (let i = 0; i < COUNT; i++) gems.push(make(Math.floor(i * 3 / COUNT), true));
+	}
+	layout(window.innerWidth, window.innerHeight);
+
+	return {
+		resize(w, h) { layout(w, h); },
+		update(ms) {
+			for (let g of gems) {
+				g.cy += g.speedY * ms * g.scale;
+				g.cx += g.speedX * ms * g.scale;
+				g.rot = (g.rot + g.rotSpeed * ms) % 360;
+				if (g.cy >= size) {
+					const n = make(g.ci, false);
+					g.cx = n.cx; g.cy = n.cy; g.rot = n.rot;
+					g.rotSpeed = n.rotSpeed; g.speedX = n.speedX;
+				}
+			}
+		},
+		draw(ctx, w, h) {
+			const ox = (size - w) * 0.5, oy = (size - h) * 0.5;
+			for (let g of gems) {
+				const x = g.cx - ox, y = g.cy - oy;
+				const side = unit * g.scale;
+				if (x < -side * 2 || x > w + side * 2 || y < -side * 2 || y > h + side * 2) continue;
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(g.rot * Math.PI / 180);
+				ctx.fillStyle = g.color;
+				ctx.fillRect(-side / 2, -side / 2, side, side);
+				ctx.restore();
+			}
+		}
+	};
+}
+
+/* ---- 晴夜：MeteorShowerImplementor ---- */
+// 15 颗流星（竖线，整层旋转 60° 变成斜的）+ 50 颗缓慢明灭的星点。
+// 原版 252 行，核心就这些参数。
+function newFxMeteor() {
+	const COLORS = ['rgb(210,247,255)', 'rgb(208,233,255)', 'rgb(175,201,228)', 'rgb(164,194,220)',
+		'rgb(97,171,220)', 'rgb(74,141,193)', 'rgb(54,66,119)', 'rgb(34,48,74)',
+		'rgb(236,234,213)', 'rgb(240,220,151)'];
+	let W = 0, H = 0, size = 0;
+	const meteors = [], stars = [];
+
+	function makeMeteor(scale) {
+		// 原版：width = viewWidth * 0.0088 * scale，scale 是 0~1 的随机数
+		const maxH = 1.1 * W / Math.cos(60 * Math.PI / 180);
+		const minH = maxH * 0.7;
+		return {
+			x: Math.random() * size,
+			y: Math.random() * size - maxH - size,
+			w: W * 0.0088 * scale,
+			h: minH + Math.random() * (maxH - minH),
+			speed: W / 200,
+			scale: scale,
+			color: COLORS[Math.floor(Math.random() * COLORS.length)]
+		};
+	}
+
+	function layout(w, h) {
+		W = w; H = h;
+		size = Math.sqrt(w * w + h * h);
+		meteors.length = 0;
+		stars.length = 0;
+
+		for (let i = 0; i < 15; i++) meteors.push(makeMeteor(Math.random()));
+
+		const r0 = 0.00125 * size * (0.5 + Math.random());
+		const starH = (size - h) * 0.5 + w * 1.1111;
+		for (let i = 0; i < 50; i++) {
+			stars.push({
+				x: Math.random() * size - 0.5 * (size - w),
+				y: Math.random() * starH - 0.5 * (size - h),
+				r: r0 * (0.7 + 0.3 * Math.random()),
+				color: COLORS[i % COLORS.length],
+				dur: 2500 + Math.random() * 2500,
+				prog: 0,
+				alpha: 0.33
+			});
+		}
+	}
+	layout(window.innerWidth, window.innerHeight);
+
+	return {
+		resize(w, h) { layout(w, h); },
+		update(ms) {
+			for (let m of meteors) {
+				// rotation3D 固定 0：只有 y 方向，速度按 scale^0.5 分快慢
+				m.y += m.speed * ms * Math.pow(m.scale, 0.5);
+				if (m.y >= size) {
+					const nm = makeMeteor(m.scale);
+					m.x = nm.x; m.y = nm.y; m.w = nm.w; m.h = nm.h; m.speed = nm.speed;
+				}
+			}
+			for (let st of stars) {
+				st.prog = (st.prog + ms) % st.dur;
+				const t = st.prog / st.dur;
+				// 0 -> 1 -> 0 的三角波，再压到 0.33~1
+				st.alpha = (t < 0.5 ? t / 0.5 : (1 - (t - 0.5) / 0.5)) * 0.66 + 0.33;
+			}
+		},
+		draw(ctx, w, h) {
+			const ox = (size - w) * 0.5, oy = (size - h) * 0.5;
+
+			// 星点：原版是 drawPoint + strokeWidth=radius*2（实心圆点）。
+			// 这里外面再罩一层很淡的光晕，小点在低分辨率下才不会看着像方块。
+			for (let st of stars) {
+				const sx = st.x - ox, sy = st.y - oy;
+				if (sx < -8 || sy < -8 || sx > w + 8 || sy > h + 8) continue;
+				ctx.fillStyle = st.color;
+				ctx.globalAlpha = st.alpha * 0.16;
+				ctx.beginPath();
+				ctx.arc(sx, sy, st.r * 2.6, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.globalAlpha = st.alpha;
+				ctx.beginPath();
+				ctx.arc(sx, sy, st.r, 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+
+			// 流星：竖线 + 整层旋转 60°
+			ctx.save();
+			ctx.translate(w / 2, h / 2);
+			ctx.rotate(60 * Math.PI / 180);
+			ctx.translate(-w / 2, -h / 2);
+			for (let m of meteors) {
+				const cx = m.x - ox;
+				const top = m.y - oy;
+				if (cx < -m.h || cx > w + m.h || top < -m.h * 2 || top > h + m.h) continue;
+				// 尾巴淡、头亮：一条纯色细线在 1px 附近很容易出现阶梯感
+				const g = ctx.createLinearGradient(cx, top, cx, top + m.h);
+				g.addColorStop(0, 'rgba(255,255,255,0)');
+				g.addColorStop(0.55, m.color);
+				g.addColorStop(1, 'rgba(255,255,255,.92)');
+				ctx.strokeStyle = g;
+				ctx.lineWidth = Math.max(1.2, m.w);
+				ctx.lineCap = 'round';
+				ctx.beginPath();
+				ctx.moveTo(cx, top);
+				ctx.lineTo(cx, top + m.h);
+				ctx.stroke();
+			}
+			ctx.restore();
+		}
+	};
+}
+
+function render(res) {
+	const d = res.data;
+	if (!d || !d.current) {
+		showError('天气数据不完整');
+		return;
+	}
+	lastData = res;
+	const cur = d.current;
+	const place = res.place || '';
+	const aff = res.affiliation || '';
+
+	// 城市名：优先"区县"，副标题带"市, 省"
+	const mainPlace = place || '当前位置';
+	const subPlace = aff ? aff.split(',')[0] : '';
+
+	const temp = cur.temperature ? cur.temperature.value : '—';
+	const feel = cur.feelsLike ? cur.feelsLike.value : '';
+	// 调试用：URL 带 ?wx=<天气代码> 时强制按那个代码画动画，
+	// 不用真的等某种天气。比如 w.html?wx=9 看大雨，?wx=13 看雪。
+	let code = cur.weather;
+	const wxq = new URLSearchParams(location.search).get('wx');
+	if (wxq !== null && /^[0-9]{1,2}$/.test(wxq)) code = wxq;
+	// 日夜用接口的日出日落判断，别硬编码 6~19 点：
+	// 新疆冬天 18:40 就天黑了，夏天 22:00 还亮着。
+	const sunToday = (((d.forecastDaily || {}).sunRiseSet || {}).value || [])[0] || null;
+	const night = isNightNow(sunToday);
+	const day0 = ((d.forecastDaily || {}).temperature || {}).value || [];
+	const hi = day0[0] ? day0[0].from : '';
+	const lo = day0[0] ? day0[0].to : '';
+
+	let html = '';
+
+	// 顶部
+	html += '<div class="top"><div>';
+	html += '<div class="place">' + esc(mainPlace) +
+		(subPlace && subPlace !== mainPlace ? '<span class="sub">' + esc(subPlace) + '</span>' : '') + '</div>';
+	// 显示"多久前更新的"：fetchedAt 是后端拉到数据的时刻，比
+	// cur.pubTime（数据发布时刻，可能几小时前）更贴近用户关心的"新不新"。
+	const fetchedMs = res.fetchedAt ? res.fetchedAt * 1000 : Date.now();
+	const age = Date.now() - fetchedMs;
+	html += '<div class="stamp">' + agoText(age) + '更新</div>';
+	html += '</div><button class="btn-city" onclick="openCity()">切换</button></div>';
+
+	// 当前：大温度 + 「天气, 体感 X°」+ 第三行 AQI/风
+	html += '<div class="hero">';
+	html += '<div class="temp">' + esc(String(temp)) + '<span class="deg">°</span></div>';
+	let condLine = wtext(code);
+	if (feel !== '' && feel !== String(temp)) condLine += ', 体感 ' + feel + '°';
+	html += '<div class="cond">' + esc(condLine) + '</div>';
+
+	// 第三行：有 AQI 就写空气质量，否则退回湿度和风
+	const aqiNow = (d.aqi || {});
+	let third = '';
+	if (aqiNow.aqi) {
+		const inf = aqiInfo(aqiNow.aqi);
+		third = '空气质量 ' + inf.lv + ' ' + aqiNow.aqi;
+	} else {
+		const w0 = (cur.wind || {});
+		const bits0 = [];
+		if (hum !== '') bits0.push('湿度 ' + hum + '%');
+		if ((w0.speed || {}).value) bits0.push(windDirOf((w0.direction || {}).value) + ' ' + w0.speed.value + ' km/h');
+		third = bits0.join(' · ');
+	}
+	if (third) html += '<div class="sub">' + esc(third) + '</div>';
+	html += '</div>';
+
+	// 逐小时
+	const hours = ((d.forecastHourly || {}).temperature || {}).value || [];
+	const hWeather = ((d.forecastHourly || {}).weather || {}).value || [];
+	const hTime = ((d.forecastHourly || {}).wind || {}).value || [];
+	if (hours.length) {
+		html += '<div class="card"><h3>逐小时</h3><div class="hours">';
+		for (let i = 0; i < Math.min(hours.length, 24); i++) {
+			const t = hTime[i] && hTime[i].datetime ? new Date(hTime[i].datetime) : null;
+			const label = t ? (t.getHours() + '时') : ((i === 0) ? '现在' : (i + 'h'));
+			const c = hWeather[i] != null ? hWeather[i] : code;
+			const nightH = t ? (t.getHours() < 6 || t.getHours() >= 19) : night;
+			html += '<div class="hour"><div class="t">' + label + '</div>' +
+				'<div class="i">' + iconOf(parseInt(c, 10), nightH) + '</div>' +
+				'<div class="v">' + esc(String(hours[i])) + '°</div></div>';
+		}
+		html += '</div></div>';
+	}
+
+	// 空气质量
+	const aqi = d.aqi || {};
+	if (aqi.aqi) {
+		const info = aqiInfo(aqi.aqi);
+		const parts = [];
+		if (aqi.pm25) parts.push('PM2.5 ' + aqi.pm25);
+		if (aqi.pm10) parts.push('PM10 ' + aqi.pm10);
+		if (aqi.o3) parts.push('O₃ ' + aqi.o3);
+		html += '<div class="card"><h3>空气质量</h3>' +
+			'<div class="aqi-row"><span class="aqi-num" style="color:' + info.color + '">' +
+			esc(String(aqi.aqi)) + '</span><span class="aqi-lv" style="color:' + info.color + '">' +
+			info.lv + '</span></div>' +
+			(parts.length ? '<div class="aqi-sub">' + parts.join(' · ') + '</div>' : '') + '</div>';
+	}
+
+	// 每日
+	const dTemp = ((d.forecastDaily || {}).temperature || {}).value || [];
+	const dWeather = ((d.forecastDaily || {}).weather || {}).value || [];
+	const dSun = ((d.forecastDaily || {}).sunRiseSet || {}).value || [];
+	const dPop = ((d.forecastDaily || {}).precipitationProbability || {}).value || [];
+	if (dTemp.length) {
+		html += '<div class="card"><h3>预报</h3>';
+		for (let i = 0; i < Math.min(dTemp.length, 15); i++) {
+			const w = dWeather[i] || {};
+			const codeD = w.from != null ? w.from : 0;
+			const codeN = w.to != null ? w.to : codeD;
+			const label = dayLabel(i);
+			const dateStr = dSun[i] && dSun[i].from ? fmtDate(new Date(dSun[i].from)) : '';
+			const pop = dPop[i] != null ? dPop[i] : '';
+			// 白天和夜间天气不同就都写出来
+			const t1 = wtext(codeD);
+			const t2 = wtext(codeN);
+			const ctext = (t1 === t2) ? t1 : (t1 + '转' + t2);
+			html += '<div class="day">' +
+				'<div class="d">' + label + (dateStr && i < 3 ? '<span class="w">' + dateStr + '</span>' : '') + '</div>' +
+				'<div class="i">' + iconOf(parseInt(codeD, 10), false) + '</div>' +
+				'<div class="c">' + esc(ctext) + '</div>' +
+				(pop !== '' && parseInt(pop, 10) > 0 ? '<div class="p">' + esc(String(pop)) + '%</div>' : '<div class="p"></div>') +
+				'<div class="r">' + esc(String(dTemp[i].to)) + '° <span class="lo">/ ' +
+				esc(String(dTemp[i].from)) + '°</span></div>' +
+				'</div>';
+		}
+		html += '</div>';
+	}
+
+	// 详情
+	const wind = (cur.wind || {});
+	const windSpeed = (wind.speed || {}).value || '';
+	const windDir = windDirOf((wind.direction || {}).value);
+	const hum = (cur.humidity || {}).value || '';
+	const pres = (cur.pressure || {}).value || '';
+	const uv = cur.uvIndex || '';
+	const vis = (cur.visibility || {}).value || '';
+	const sunD = dSun[0] || {};
+	html += '<div class="card"><h3>详情</h3><div class="grid">';
+	html += gi('湿度', hum !== '' ? hum + '%' : '—');
+	html += gi('风', windSpeed !== '' ? windDir + ' ' + windSpeed + ' km/h' : '—');
+	html += gi('气压', pres !== '' ? pres + ' hPa' : '—');
+	html += gi('紫外线', uv !== '' ? uvName(uv) : '—');
+	if (sunD.from) html += gi('日出', fmtClock(sunD.from));
+	if (sunD.to) html += gi('日落', fmtClock(sunD.to));
+	if (vis !== '') html += gi('能见度', vis + ' km');
+	html += '</div></div>';
+
+	$('app').innerHTML = html;
+	paintBg(code, night);
+	fxStart(code, night);
+	wxTestBind();
+}
+
+function gi(k, v) {
+	return '<div class="gi"><div class="k">' + k + '</div><div class="v">' + esc(v) + '</div></div>';
+}
+
+function windDirOf(deg) {
+	const d = parseFloat(deg);
+	if (!(d >= 0)) return '';
+	const dirs = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+	return dirs[Math.round(d / 45) % 8] + '风';
+}
+
+function uvName(v) {
+	const n = parseInt(v, 10);
+	if (!(n >= 0)) return '—';
+	if (n <= 2) return '弱';
+	if (n <= 5) return '中等';
+	if (n <= 7) return '强';
+	if (n <= 10) return '很强';
+	return '极强';
+}
+
+function fmtClock(iso) {
+	const d = new Date(iso);
+	return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+// 有日出日落就用它，没有就退回固定时段
+// 距今多久，用来判断数据新不新鲜
+function agoText(ms) {
+	const m = Math.floor(ms / 60000);
+	if (m < 1) return '刚刚';
+	if (m < 60) return m + ' 分钟前';
+	const h = Math.floor(m / 60);
+	if (h < 24) return h + ' 小时前';
+	return Math.floor(h / 24) + ' 天前';
+}
+
+function isNightNow(sun) {
+	if (!sun || !sun.from || !sun.to) return isNight();
+	const now = Date.now();
+	const rise = new Date(sun.from).getTime();
+	const set = new Date(sun.to).getTime();
+	if (!(rise > 0) || !(set > 0)) return isNight();
+	return now < rise || now > set;
+}
+
+function isNight() {
+	const h = new Date().getHours();
+	return h < 6 || h >= 19;
+}
+
+function esc(s) {
+	return String(s == null ? '' : s)
+		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
+
+function showError(msg) {
+	$('app').innerHTML = '<div class="msg"><div class="big">' + esc(msg) + '</div>' +
+		'<div>检查一下网络，或者稍后重试</div>' +
+		'<button class="retry" onclick="load()">重试</button></div>';
+}
+
+
+
+
+
+
+
+
+/* ---------- 下拉刷新 ---------- */
+// 仿 Android SwipeRefreshLayout：
+//   拖动阶段 —— JS 逐帧算（弧长 1→88 正好一圈，圆盘位移跟着手指），
+//                这样按住往上滑能原路缩回去，不会单向卡住
+//   刷新阶段 —— 交给 CSS 跑 Material 的双层动画（旋转 + 弧长伸缩）
+let pullStartY = -1, pullDist = 0, pullBusy = false, pullLock = false;
+const PULL_THRESH = 72;
+const CIRC = 2 * Math.PI * 14;   // 圆的周长，弧长到它就正好是整圆
+
+function pullSet(progress, extraY) {
+	// progress 0~1：0 是刚拉出来，1 是到达刷新阈值
+	const el = $('pull');
+	if (!el) return;
+	const p = Math.max(0, Math.min(1, progress));
+	// p=0 时完全藏在上方（-70），p=1 时停在离顶 14 的位置 —— 不能是 0，
+	// 否则拉到底就贴着屏幕边缘，安卓的 SwipeRefreshLayout 也留了间距
+	const HIDDEN = -70, TOP = 14;
+	const y = HIDDEN + (TOP - HIDDEN) * p + (extraY || 0);
+	el.style.opacity = p > 0.02 ? '1' : '0';
+	el.style.transform = 'translateY(' + y + 'px) scale(' + (0.6 + 0.4 * p) + ')';
+	const c = el.querySelector('circle');
+	if (c) {
+		// 弧长跟着进度长，到 1 正好整圈
+		c.setAttribute('stroke-dasharray', (1 + (CIRC - 1) * p).toFixed(1) + ' 200');
+	}
+}
+
+// 刷新中的转圈：每帧写 SVG 原生属性，不依赖 CSS transform
+let spinRaf = 0, spinStart = 0;
+
+function spinGo(on) {
+	const g = document.querySelector('#pull g');
+	const c = document.querySelector('#pull circle');
+	if (on) {
+		spinStart = performance.now();
+		if (spinRaf) cancelAnimationFrame(spinRaf);
+		spinRaf = requestAnimationFrame(spinLoop);
+	} else {
+		if (spinRaf) { cancelAnimationFrame(spinRaf); spinRaf = 0; }
+		if (g) g.removeAttribute('transform');
+		if (c) { c.setAttribute('stroke-dasharray', '1 200'); c.setAttribute('stroke-dashoffset', '0'); }
+	}
+}
+
+function spinLoop(t) {
+	spinRaf = requestAnimationFrame(spinLoop);
+	const g = document.querySelector('#pull g');
+	const c = document.querySelector('#pull circle');
+	if (!g || !c) return;
+	const el = t - spinStart;
+
+	// 整体旋转：1.4 秒转 270°
+	const rot = (el / 1400 * 270) % 270;
+	g.setAttribute('transform', 'rotate(' + rot.toFixed(2) + ' 20 20)');
+
+	// 弧长 + 起始偏移一起变：
+	//   弧长从 11（约 1/8 圈）涨到 87（整圈）再缩回 —— 起点不能是 1，
+	//   1px 的弧在屏幕上就是个点，看不出是"转圈"。
+	//   同时 dashoffset 从 0 滑到 -124，让短弧也跟着往前跑。
+	const ph = (el % 1400) / 1400;
+	const grow = ph < 0.5 ? (ph / 0.5) : (1 - (ph - 0.5) / 0.5);
+	const dash = 11 + 76 * grow;
+	const offset = -124 * ph;
+	c.setAttribute('stroke-dasharray', dash.toFixed(1) + ' 200');
+	c.setAttribute('stroke-dashoffset', offset.toFixed(1));
+}
+
+function pullHide() {
+	const el = $('pull');
+	if (!el) return;
+	el.classList.add('settle');
+	el.style.opacity = '0';
+	el.style.transform = 'translateY(-70px)';
+	spinGo(false);
+	setTimeout(() => { el.classList.remove('settle'); }, 300);
+}
+
+function pullBind() {
+	document.addEventListener('touchstart', (ev) => {
+		if (pullBusy) return;
+		if (window.scrollY > 0) return;
+		pullStartY = ev.touches[0].clientY;
+		pullDist = 0;
+		const el = $('pull');
+		if (el) el.classList.remove('settle', 'spin');
+	}, { passive: true });
+
+	// 这里必须 passive: false —— 下拉时要 preventDefault 吃掉滚动，
+	// 否则页面会跟着一起往下滚，圆盘和内容同时动，看着很乱。
+	document.addEventListener('touchmove', (ev) => {
+		if (pullStartY < 0 || pullBusy) return;
+		if (window.scrollY > 0) { pullStartY = -1; pullHide(); return; }
+		const d = ev.touches[0].clientY - pullStartY;
+		if (d <= 0) {
+			// 往上滑：指示器原路缩回（能倒放）。
+			// 如果这次手势已经下拉过（pullLock），整个手势期间都不让页面滚 ——
+			// 否则会出现"下拉到一半又反悔往上滑，页面突然跳走"的割裂感。
+			if (pullLock && ev.cancelable) ev.preventDefault();
+			pullDist = 0;
+			pullSet(0);
+			return;
+		}
+		// 一旦真的往下拉了，就锁住这次手势，后续（包括上滑）都吃掉滚动
+		pullLock = true;
+		if (ev.cancelable) ev.preventDefault();
+		pullDist = d;
+		// 阻尼：越拖越迟钝
+		const damped = d < PULL_THRESH ? d : PULL_THRESH + (d - PULL_THRESH) * 0.4;
+		pullSet(damped / PULL_THRESH);
+	}, { passive: false });
+
+	document.addEventListener('touchend', () => {
+		if (pullStartY < 0 || pullBusy) return;
+		const trigger = pullDist >= PULL_THRESH;
+		pullStartY = -1;
+		pullLock = false;
+		if (!trigger) { pullHide(); pullDist = 0; return; }
+
+		// 刷新：圆盘停在离顶 14px 的位置转
+		pullBusy = true;
+		const el = $('pull');
+		if (el) {
+			el.classList.add('settle');
+			el.style.opacity = '1';
+			el.style.transform = 'translateY(14px) scale(1)';
+			spinGo(true);
+		}
+		load(true).then(() => {
+			pullBusy = false; pullHide(); pullDist = 0;
+		}).catch(() => {
+			pullBusy = false; pullHide(); pullDist = 0;
+		});
+	});
+}
+
+/* ---------- 动画测试面板 ---------- */
+// 设备上不好改 URL，所以在页面上留个入口：连点温度 5 次弹出代码列表。
+const WX_NAMES = {
+	0: '晴', 1: '多云', 2: '阴', 3: '阵雨', 4: '雷阵雨', 5: '雷阵雨伴冰雹',
+	6: '雨夹雪', 7: '小雨', 8: '中雨', 9: '大雨', 10: '暴雨', 11: '大暴雨',
+	12: '特大暴雨', 13: '阵雪', 14: '小雪', 15: '中雪', 16: '大雪', 17: '暴雪',
+	18: '雾', 19: '冻雨', 20: '沙尘暴', 21: '小到中雨', 22: '中到大雨',
+	29: '浮尘', 30: '扬沙', 34: '中度霾', 35: '重度霾'
+};
+let tmpClick = 0, tmpTimer = 0;
+
+function wxTestBind() {
+	const el = document.querySelector('.hero .temp');
+	if (!el) return;
+	el.addEventListener('click', () => {
+		tmpClick++;
+		clearTimeout(tmpTimer);
+		tmpTimer = setTimeout(() => { tmpClick = 0; }, 1200);
+		if (tmpClick >= 5) { tmpClick = 0; openWxTest(); }
+	});
+}
+
+function openWxTest() {
+	let h = '<div style="padding:4px 0 10px;font-size:12px;color:#8b9aa6">点一个看动画（会重新加载）</div><div class="chip-wrap">';
+	h += '<button class="chip2" onclick="applyWx(null)">跟随实际</button>';
+	for (const k in WX_NAMES)
+		h += '<button class="chip2" onclick="applyWx(' + k + ')">' + k + ' ' + WX_NAMES[k] + '</button>';
+	h += '</div>';
+	$('sheet-title').textContent = '动画测试';
+	$('sheet-back').style.display = 'none';
+	$('sheet-body').innerHTML = h;
+	$('sheet').classList.add('on');
+}
+
+function applyWx(code) {
+	const u = new URL(location.href);
+	if (code === null) u.searchParams.delete('wx');
+	else u.searchParams.set('wx', String(code));
+	location.replace(u.toString());
+}
+
+/* ---------- 城市选择 ---------- */
+// 没输入法也没 GPS，所以走"省 → 市 → 区县"三级列表，全靠点。
+let cityData = null;
+let nav = { prov: '', city: '' };
+
+async function openCity() {
+	if (!cityData) {
+		try {
+			// 带版本号：这是个固定 URL，WPE 会缓存旧的城市表
+			const r = await fetch('/plugins/weather/cities.json?v=2');
+			cityData = await r.json();
+		} catch (e) {
+			alert('城市列表加载失败');
+			return;
+		}
+	}
+	nav = { prov: '', city: '' };
+	paintCity();
+	$('sheet').classList.add('on');
+}
+
+function closeCity() {
+	$('sheet').classList.remove('on');
+}
+
+function cityBack() {
+	if (nav.city) { nav.city = ''; }
+	else if (nav.prov) { nav.prov = ''; }
+	paintCity();
+}
+
+function paintCity() {
+	const body = $('sheet-body');
+	const title = $('sheet-title');
+	const back = $('sheet-back');
+	const provs = Object.keys(cityData || {});
+
+	if (!nav.prov) {
+		title.textContent = '选择省份';
+		back.style.display = 'none';
+		let h = '<button class="chip2" style="margin-bottom:10px;width:100%" onclick="pickAuto()">用当前位置</button>';
+		h += '<div class="chip-wrap">';
+		for (let p of provs) h += '<button class="chip2" onclick="pickProv(\'' + p + '\')">' + p + '</button>';
+		h += '</div>';
+		body.innerHTML = h;
+		return;
+	}
+
+	const cities = cityData[nav.prov] || {};
+	if (!nav.city) {
+		title.textContent = nav.prov;
+		back.style.display = '';
+		let h = '<div class="chip-wrap">';
+		for (let c of Object.keys(cities)) h += '<button class="chip2" onclick="pickCity2(\'' + c + '\')">' + c + '</button>';
+		h += '</div>';
+		body.innerHTML = h;
+		return;
+	}
+
+	// 区县
+	const counties = cities[nav.city] || [];
+	title.textContent = nav.city;
+	back.style.display = '';
+	if (!counties.length) {
+		// 没有区县数据（直辖市或省直辖），直接选市
+		body.innerHTML = '<div style="padding:30px 10px;text-align:center;color:#8b9aa6;font-size:13px">这个市没有下级区县</div>';
+		return;
+	}
+	let h = '';
+	// 如果市名和区县不同，先给一个"整个市"的选项。
+	// 但「直辖县级市」不是一座城，是一组互不隶属的县级市，
+	// 没有"整个"可言 —— 直接列下面的名字。
+	if (nav.city !== nav.prov && nav.city !== '直辖县级市') {
+		h += '<button class="chip2" style="width:100%;margin-bottom:10px" onclick="pickCity(\'' + nav.city + '\',\'' + nav.prov + '\')">整个' + nav.city + '</button>';
+	}
+	h += '<div class="chip-wrap">';
+	for (let d of counties)
+		h += '<button class="chip2" onclick="pickCity(\'' + d.replace(/'/g, "\\'") + '\',\'' + nav.city.replace(/'/g, "\\'") + '\')">' + d + '</button>';
+	h += '</div>';
+	body.innerHTML = h;
+}
+
+function pickProv(p) { nav.prov = p; nav.city = ''; paintCity(); }
+function pickCity2(c) { nav.city = c; paintCity(); }
+
+async function pickCity(name, aff) {
+	try {
+		const d = await API('setcity?name=' + encodeURIComponent(name) + '&aff=' + encodeURIComponent(aff));
+		if (!d || !d.ok) { alert((d && d.error) || '切换失败'); return; }
+		closeCity();
+		load(1);
+	} catch (e) {
+		alert('切换失败：' + (e && e.message ? e.message : e));
+	}
+}
+
+async function pickAuto() {
+	try {
+		const d = await API('autolocate');
+		if (!d || !d.ok) { alert((d && d.error) || '定位失败'); return; }
+		closeCity();
+		load(1);
+	} catch (e) {
+		alert('定位失败：' + (e && e.message ? e.message : e));
+	}
+}
+
+/* ---------- 加载 ---------- */
+async function load(force) {
+	try {
+		const res = await API('weather' + (force ? '?force=1' : ''));
+		if (!res || !res.ok) {
+			showError((res && res.error) || '天气加载失败');
+			return;
+		}
+		render(res);
+	} catch (e) {
+		console.log('[wx] FAIL ' + (e && e.message ? e.message : String(e)) + ' status=' + (e && e.status));
+		showError('连不上后台：' + (e && e.message ? e.message : e));
+	}
+}
+
+
+// 读信息屏的主题设置，打在 body 上给 CSS 用
+async function loadTheme() {
+	try {
+		const t = await API('theme');
+		if (t && t.ok) {
+			document.body.dataset.accent = t.accent || 'blue';
+			document.body.dataset.theme = t.theme || 'dark';
+		}
+	} catch (e) { /* 读不到就用默认蓝 */ }
+}
+
+// 等 e5 SDK 就绪再拉数据。
+// 这台 WPE 上 <script src> 的加载不是严格同步的：主脚本先跑完、
+// e5.js 才执行，直接调 load() 会因为 window.e5 还是 undefined 而报
+// "连不上后台"。轮询等一下，最多 5 秒。
+(function boot() {
+	let waited = 0;
+	(function tick() {
+		if (window.e5 || waited >= 50) { loadTheme(); load(); return; }
+		waited++;
+		setTimeout(tick, 100);
+	})();
+})();
+
+pullBind();
+
+// 每 10 分钟自己刷一次，页面开着不用管
+setInterval(() => load(), 10 * 60 * 1000);
+</script>
+</body>
+</html>
